@@ -28,8 +28,9 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
     const [excelInfo, setExcelInfo] = useState(null);
     const [stripeInfo, setStripeInfo] = useState(null);
 
-    // Modal state for status check
+    // Modal state for success/status
     const [showStatusModal, setShowStatusModal] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [statusToConfirm, setStatusToConfirm] = useState('');
 
     const fetchReconciliation = async () => {
@@ -162,7 +163,7 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
                         <StepItem active={step === 'reconcile'} done={!!data} label="Data Reconciliation" />
                         <StepItem active={step === 'excel'} done={!!excelInfo} label="Excel Generation" />
                         <StepItem active={step === 'stripe'} done={!!stripeInfo} label="Stripe Invoice Creation" />
-                        <StepItem active={step === 'done'} done={false} label="Final Confirmation" />
+                        <StepItem active={step === 'done'} done={step === 'done'} label="Final Confirmation" />
                     </div>
                 </div>
 
@@ -381,8 +382,8 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
                                                 })
                                             });
                                             if (res.ok) {
-                                                alert(`${segmentOnly ? 'CFP' : 'Host'} Invoice Sent Successfully!`);
-                                                onBack();
+                                                setShowSuccessModal(true);
+                                                setStep('done');
                                             }
                                         } catch (err) {
                                             alert('Error sending invoice');
@@ -396,6 +397,40 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
                             </div>
                         </div>
                     )}
+
+                    {/* Success Modal */}
+                    <AnimatePresence>
+                        {showSuccessModal && (
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '2rem' }}>
+                                <motion.div
+                                    initial={{ scale: 0.9, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    className="glass-card" style={{ maxWidth: '500px', padding: '3rem', textAlign: 'center' }}
+                                >
+                                    <div style={{
+                                        width: '80px',
+                                        height: '80px',
+                                        borderRadius: '50%',
+                                        background: 'rgba(16, 185, 129, 0.1)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        margin: '0 auto 1.5rem',
+                                        color: 'var(--success)'
+                                    }}>
+                                        <CheckCircle size={48} />
+                                    </div>
+                                    <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Invoice Sent!</h2>
+                                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
+                                        The <strong>{segmentOnly ? 'CFP' : 'Host'}</strong> invoice has been successfully finalized and emailed to the agency with all attachments (PDF & Excel Breakdown).
+                                    </p>
+                                    <button className="btn btn-primary" style={{ width: '100%' }} onClick={onBack}>
+                                        Return to Dashboard
+                                    </button>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </motion.div>
