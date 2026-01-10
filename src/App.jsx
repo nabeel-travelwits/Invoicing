@@ -14,7 +14,8 @@ import {
   Users,
   Settings,
   LogOut,
-  Package
+  Package,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PipelineView from './components/PipelineView';
@@ -23,8 +24,16 @@ import { ProgressBar } from './components/ProgressBar';
 import Login from './components/Login';
 import SummaryView from './components/SummaryView';
 import BatchCFPView from './components/BatchCFPView';
+import ReportsView from './components/ReportsView';
+
+import PublicReportsView from './components/PublicReportsView';
 
 function App() {
+  // Check for public route immediately
+  if (window.location.pathname === '/public-reports') {
+    return <PublicReportsView />;
+  }
+
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
     return saved ? JSON.parse(saved) : null;
@@ -36,7 +45,7 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAgency, setSelectedAgency] = useState(null);
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'pipeline', 'logs', 'cfp'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'pipeline', 'logs', 'cfp', 'reports'
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showConfig, setShowConfig] = useState(null); // ID of agency being configured
@@ -164,6 +173,14 @@ function App() {
     );
   }
 
+  if (view === 'reports') {
+    return (
+      <div className="container" style={{ paddingTop: '4rem' }}>
+        <ReportsView />
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ paddingTop: '4rem' }}>
       <ProgressBar
@@ -210,12 +227,11 @@ function App() {
           <button className={`btn ${view === 'summary' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('summary')}>
             <LayoutDashboard size={18} /> Monthly Summary
           </button>
+          <button className={`btn ${view === 'reports' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('reports')}>
+            <FileText size={18} /> Reports
+          </button>
 
-          {view === 'dashboard' && (
-            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-              <Plus size={18} /> New
-            </button>
-          )}
+          {/* New button removed as per request */}
           <button className="btn btn-ghost" onClick={() => setShowExclusionModal(true)} style={{ position: 'relative' }}>
             <X size={18} /> Excluded {excludedIds.length > 0 && <span className="badge badge-danger" style={{ position: 'absolute', top: '-5px', right: '-5px', fontSize: '0.6rem', padding: '2px 5px' }}>{excludedIds.length}</span>}
           </button>

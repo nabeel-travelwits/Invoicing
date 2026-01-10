@@ -236,6 +236,15 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
                                 </tr>
                             ))}
                         </tbody>
+                        <tfoot>
+                            <tr style={{ background: 'rgba(99, 102, 241, 0.1)', borderTop: '2px solid var(--primary)' }}>
+                                <td colSpan={3} style={{ padding: '1.5rem', fontWeight: 700, fontSize: '1.1rem' }}>BATCH TOTAL</td>
+                                <td style={{ padding: '1.5rem', fontWeight: 800, fontSize: '1.3rem', color: 'var(--success)' }}>
+                                    ${batchData.reduce((sum, item) => sum + (item.segmentUsage[0].count * item.agency.segmentPrice), 0).toFixed(2)}
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             )}

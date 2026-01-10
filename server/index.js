@@ -580,6 +580,94 @@ app.post('/api/batch-reconcile-cfp', asyncHandler(async (req, res) => {
     res.json(results);
 }));
 
+// --- Reporting Endpoints ---
+
+// Invoice Reports
+app.get('/api/reports/invoices', asyncHandler(async (req, res) => {
+    const { from, to } = req.query;
+    const logs = await supabaseService.getLogs();
+
+    const filtered = logs.filter(log => {
+        if (!log.timestamp) return false;
+        const logDate = new Date(log.timestamp);
+        const fromDate = from ? new Date(from) : new Date('2000-01-01');
+        const toDate = to ? new Date(to) : new Date();
+        return logDate >= fromDate && logDate <= toDate;
+    });
+
+    const host = filtered.filter(log => log.invoiceType !== 'CFP');
+    const cfp = filtered.filter(log => log.invoiceType === 'CFP');
+
+    res.json({ host, cfp });
+}));
+
+// User Reports by Agency
+app.get('/api/reports/users/:agencyId', asyncHandler(async (req, res) => {
+    const { agencyId } = req.params;
+    const users = await baserow.getAllUsersByAgency(agencyId);
+    res.json(users);
+}));
+
+// Booking Reports
+app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
+    try {
+        const SHEET_ID = '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ';
+        const allRows = await sheets.getRawSheetValues(SHEET_ID);
+
+        const cfpGrouped = {};
+        const hostGrouped = {};
+
+        allRows.forEach(row => {
+            const userEmail = row['loggedInUserEmail'] || '';
+            const status = row['tripStatus'] || '';
+            const agencyName = (row['AgencyName'] || '').trim();
+
+            // Must have valid status and agency
+            if (status.toLowerCase() !== 'booked') return;
+            if (!row.id && !row.TripID && !row.BookingID && !row['Trip ID']) return;
+            if (!agencyName) return;
+
+            // CFP bookings: no logged-in user
+            if (userEmail.trim() === '') {
+                if (!cfpGrouped[agencyName]) cfpGrouped[agencyName] = [];
+                cfpGrouped[agencyName].push(row);
+            }
+            // Host bookings: has logged-in user
+            else {
+                if (!hostGrouped[agencyName]) hostGrouped[agencyName] = [];
+                hostGrouped[agencyName].push(row);
+            }
+        });
+
+        const cfpByAgency = Object.entries(cfpGrouped).map(([agencyName, bookings]) => ({
+            agencyName,
+            count: bookings.length,
+            type: 'CFP'
+        }));
+
+        const hostByAgency = Object.entries(hostGrouped).map(([agencyName, bookings]) => ({
+            agencyName,
+            count: bookings.length,
+            type: 'Host'
+        }));
+
+        const cfpCount = Object.values(cfpGrouped).reduce((sum, bookings) => sum + bookings.length, 0);
+        const hostCount = Object.values(hostGrouped).reduce((sum, bookings) => sum + bookings.length, 0);
+
+        res.json({
+            total: cfpCount + hostCount,
+            cfp: cfpCount,
+            host: hostCount,
+            cfpByAgency: cfpByAgency.sort((a, b) => b.count - a.count),
+            hostByAgency: hostByAgency.sort((a, b) => b.count - a.count),
+            byDate: []
+        });
+    } catch (err) {
+        console.error('Booking report error:', err);
+        res.json({ total: 0, cfp: 0, host: 0, cfpByAgency: [], hostByAgency: [], byDate: [] });
+    }
+}));
+
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
