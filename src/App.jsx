@@ -31,15 +31,21 @@ function App() {
   });
   const [agencies, setAgencies] = useState([]);
   const [cfpAgencies, setCfpAgencies] = useState([]);
+  const [rawAgencies, setRawAgencies] = useState([]);
+  const [rawCfpAgencies, setRawCfpAgencies] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAgency, setSelectedAgency] = useState(null);
   const [view, setView] = useState('dashboard'); // 'dashboard', 'pipeline', 'logs', 'cfp'
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showConfig, setShowConfig] = useState(null); // ID of agency being configured
   const [loadingProgress, setLoadingProgress] = useState({ visible: false, text: '', percentage: 0 });
   const [newAgency, setNewAgency] = useState({ id: '', name: '', email: '', userPrice: 15.0, segmentPrice: 0.05, sheetId: '1-DilrlkKOa9QJDBi87NhVv9LaXnY_dw0fHwjzfqmCyM' });
+  const [excludedIds, setExcludedIds] = useState(() => {
+    const saved = localStorage.getItem('excludedIds');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showExclusionModal, setShowExclusionModal] = useState(false);
+  const [excludeIdInput, setExcludeIdInput] = useState('');
 
   const fetchData = async () => {
     setLoadingProgress({ visible: true, text: 'Fetching Agencies & Logs...', percentage: 0 });
@@ -53,9 +59,11 @@ function App() {
       const logsData = await logsRes.json();
       const cfpData = await cfpRes.json();
 
-      setAgencies(agencyData);
+      setRawAgencies(agencyData);
+      setRawCfpAgencies(cfpData);
+      setAgencies(agencyData.filter(a => !excludedIds.includes(String(a.id))));
       setLogs(logsData);
-      setCfpAgencies(cfpData);
+      setCfpAgencies(cfpData.filter(a => !excludedIds.includes(String(a.id))));
     } catch (err) {
       console.error(err);
     } finally {
@@ -81,8 +89,14 @@ function App() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    localStorage.setItem('excludedIds', JSON.stringify(excludedIds));
+    fetchData(); // Refetch to apply filters
+  }, [excludedIds]);
+
+  const toggleExcludeId = (id) => {
+    const sId = String(id);
+    setExcludedIds(prev => prev.includes(sId) ? prev.filter(i => i !== sId) : [...prev, sId]);
+  };
 
   const handleAddAgency = async (e) => {
     e.preventDefault();
@@ -200,6 +214,9 @@ function App() {
               <Plus size={18} /> New
             </button>
           )}
+          <button className="btn btn-ghost" onClick={() => setShowExclusionModal(true)} style={{ position: 'relative' }}>
+            <X size={18} /> Excluded {excludedIds.length > 0 && <span className="badge badge-danger" style={{ position: 'absolute', top: '-5px', right: '-5px', fontSize: '0.6rem', padding: '2px 5px' }}>{excludedIds.length}</span>}
+          </button>
           <button className="btn btn-ghost" onClick={() => {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
@@ -376,6 +393,55 @@ function App() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {showExclusionModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '2rem' }}>
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.5rem' }}>Global Exclusions</h2>
+              <button className="btn btn-ghost" onClick={() => setShowExclusionModal(false)}><X size={20} /></button>
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>ADD AGENCY BY ID</label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Enter ID (e.g. 101)"
+                  value={excludeIdInput}
+                  onChange={e => setExcludeIdInput(e.target.value)}
+                  onKeyPress={e => e.key === 'Enter' && excludeIdInput && (toggleExcludeId(excludeIdInput), setExcludeIdInput(''))}
+                  style={{ flex: 1, border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', padding: '0.75rem' }}
+                />
+                <button className="btn btn-primary" onClick={() => {
+                  if (excludeIdInput) {
+                    toggleExcludeId(excludeIdInput);
+                    setExcludeIdInput('');
+                  }
+                }}>Add</button>
+              </div>
+            </div>
+
+            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              {excludedIds.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No agencies excluded yet.</p>
+              ) : (
+                excludedIds.map(id => {
+                  const agency = rawAgencies.find(a => String(a.id) === id) || rawCfpAgencies.find(a => String(a.id) === id);
+                  return (
+                    <div key={id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{agency ? agency.name : `Agency ID: ${id}`}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ID: {id}</div>
+                      </div>
+                      <button className="btn btn-ghost" style={{ color: 'var(--error)' }} onClick={() => toggleExcludeId(id)}><X size={16} /></button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
         </div>
       )}
     </div>
