@@ -708,6 +708,136 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
     }
 }));
 
+// Agency Specific Report (Public/Private)
+app.get('/api/reports/agency-details', asyncHandler(async (req, res) => {
+    const { name, from, to } = req.query;
+    if (!name) return res.status(400).json({ error: 'Agency Name is required' });
+
+    const cleanName = decodeURIComponent(name).trim();
+
+    // 1. Resolve Agency ID from Name (needed for User lookup)
+    const airtableAgencies = await airtable.getFilterList();
+    const dbAgencies = await db.getAgencies();
+
+    // Normalize string helper
+    const norm = (str) => (str || '').toLowerCase().trim();
+    const target = norm(cleanName);
+
+    let agencyInfo = airtableAgencies.find(a => norm(a.name) === target);
+
+    // Fallback: Check DB if not found in Airtable
+    if (!agencyInfo) {
+        agencyInfo = dbAgencies.find(a => norm(a.name) === target);
+    }
+
+    console.log(`[Report Debug] Request for '${cleanName}' -> Found ID: ${agencyInfo ? agencyInfo.id : 'NOT FOUND'}`);
+
+    // 2. Fetch Users (if ID found)
+    let users = [];
+    if (agencyInfo && agencyInfo.id) {
+        try {
+            users = await baserow.getAllUsersByAgency(String(agencyInfo.id));
+            console.log(`[Report Debug] Fetched ${users.length} users for Agency ID ${agencyInfo.id}`);
+        } catch (e) {
+            console.error(`Failed to fetch users for ${cleanName}:`, e.message);
+        }
+    }
+
+    // 3. Fetch Bookings (CFP + Host)
+    const SHEET_IDS = [
+        '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ', // 2026
+        '14qLdZshoPWppAVVCZA4pkotYBmMEY6QtRxzAb8oY-Jk'  // 2025
+    ];
+
+    let allBookings = [];
+    const results = await Promise.allSettled(SHEET_IDS.map(id => sheets.getRawSheetValues(id)));
+
+    results.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+            console.log(`[Report Debug] Sheet ${idx} (${SHEET_IDS[idx]}): ${result.value.length} rows`);
+            allBookings = [...allBookings, ...result.value];
+        } else {
+            console.error(`[Report Debug] Sheet ${idx} Failed:`, result.reason);
+        }
+    });
+
+    results.forEach(result => {
+        if (result.status === 'fulfilled') allBookings = [...allBookings, ...result.value];
+    });
+
+    const agencyBookings = [];
+    const monthlyStats = {}; // { "2025-01": { users: 0, bookings: 0, amount: 0 } }
+
+    const fromDate = from ? new Date(from) : new Date('2000-01-01');
+    const toDate = to ? new Date(to) : new Date();
+    toDate.setHours(23, 59, 59, 999);
+
+    // Process Bookings
+    allBookings.forEach(row => {
+        const rowAgency = (row['AgencyName'] || '').trim();
+        const dateStr = row['TripCreationDate'] || row['Trip Creation Date'] || row['TripCreatedDate'];
+
+        if (rowAgency.toLowerCase() !== cleanName.toLowerCase()) return;
+        if (!row.id && !row.TripID && !row.BookingID) return; // minimal validation
+
+        const rowDate = dateStr ? new Date(dateStr) : null;
+        const isValidDate = rowDate && !isNaN(rowDate.getTime());
+
+        // Date Filter for LIST (Graphs always show full history or filtered? usually full trend is better, but let's follow filter)
+        // If filter is provided, we filter the LIST. Trends we can keep full or filter. Let's filter everything for consistency.
+        if (isValidDate) {
+            if (rowDate >= fromDate && rowDate <= toDate) {
+                agencyBookings.push(row);
+            }
+
+            // Populate Monthly Stats (All time or filtered? Let's do filtered to match view)
+            // Actually, trends usually imply "over time", so maybe we ignore the specific "from/to" for valid trend lines?
+            // Let's use the date range if wide, otherwise showing 2 days on a graph is weird. 
+            // Let's include ALL data for the graph to show the "Trend", but list is filtered. 
+            // user requested "users trend for each month", implying historical context.
+
+            const monthKey = rowDate.toISOString().slice(0, 7); // YYYY-MM
+            if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { users: 0, bookings: 0, cfp: 0, host: 0 };
+            monthlyStats[monthKey].bookings += 1;
+            if (!row['loggedInUserEmail']) monthlyStats[monthKey].cfp += 1;
+            else monthlyStats[monthKey].host += 1;
+        }
+    });
+
+    // Process Users for Trend
+    users.forEach(u => {
+        if (u.activationDate) {
+            const d = new Date(u.activationDate);
+            if (!isNaN(d.getTime())) {
+                const monthKey = d.toISOString().slice(0, 7);
+                if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { users: 0, bookings: 0, cfp: 0, host: 0 };
+                monthlyStats[monthKey].users += 1; // New signups that month
+            }
+        }
+    });
+
+    // Sort Month Keys
+    const sortedKeys = Object.keys(monthlyStats).sort();
+    const graphData = sortedKeys.map(key => ({
+        month: key,
+        ...monthlyStats[key]
+    }));
+
+    res.json({
+        agencyName: cleanName,
+        agencyId: agencyInfo ? agencyInfo.id : null,
+        users: users,
+        bookings: agencyBookings,
+        graphData: graphData,
+        summary: {
+            totalUsers: users.length,
+            totalBookings: agencyBookings.length,
+            cfpBookings: agencyBookings.filter(b => !b['loggedInUserEmail']).length,
+            hostBookings: agencyBookings.filter(b => b['loggedInUserEmail']).length
+        }
+    });
+}));
+
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);

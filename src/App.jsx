@@ -27,11 +27,15 @@ import BatchCFPView from './components/BatchCFPView';
 import ReportsView from './components/ReportsView';
 
 import PublicReportsView from './components/PublicReportsView';
+import AgencyReportView from './components/AgencyReportView';
 
 function App() {
-  // Check for public route immediately
+  // Check for public routes immediately
   if (window.location.pathname === '/public-reports') {
     return <PublicReportsView />;
+  }
+  if (window.location.pathname.startsWith('/reporting/')) {
+    return <AgencyReportView />;
   }
 
   const [user, setUser] = useState(() => {
