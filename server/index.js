@@ -632,6 +632,12 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
             }
         });
 
+        const { from, to } = req.query;
+        const fromDate = from ? new Date(from) : new Date('2000-01-01');
+        const toDate = to ? new Date(to) : new Date();
+        // Set to end of day for inclusive comparison
+        toDate.setHours(23, 59, 59, 999);
+
         const cfpGrouped = {};
         const hostGrouped = {};
 
@@ -639,6 +645,15 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
             const userEmail = row['loggedInUserEmail'] || '';
             const status = row['tripStatus'] || '';
             const agencyName = (row['AgencyName'] || '').trim();
+
+            // Date Filtering
+            const dateStr = row['TripCreatedDate'] || row['BookingDate'] || row['Date'] || row['Created'];
+            if (dateStr) {
+                const rowDate = new Date(dateStr);
+                if (!isNaN(rowDate.getTime())) {
+                    if (rowDate < fromDate || rowDate > toDate) return;
+                }
+            }
 
             // Must have valid status and agency
             if (status.toLowerCase() !== 'booked') return;
