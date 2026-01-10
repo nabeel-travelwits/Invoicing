@@ -31,7 +31,7 @@ const AgencyReportView = () => {
 
     useEffect(() => {
         fetchData();
-    }, [dateRange]); // Refetch when dates change
+    }, [dateRange]);
 
     const exportToPDF = () => {
         if (!data) return;
@@ -72,7 +72,9 @@ const AgencyReportView = () => {
                             ${data.users.length === 0 ? '<tr><td colspan="4">No users found.</td></tr>' :
                 data.users.map(u => `
                                 <tr>
-                                    <td>${u.name}</td><td>${u.email}</td><td>${u.status}</td>
+                                    <td>${u.name || '-'}</td>
+                                    <td>${u.email || '-'}</td>
+                                    <td>${u.status || '-'}</td>
                                     <td>${u.activationDate ? new Date(u.activationDate).toLocaleDateString() : '-'}</td>
                                 </tr>`).join('')}
                         </tbody>
@@ -80,15 +82,22 @@ const AgencyReportView = () => {
 
                     <h2>Host Bookings Summary</h2>
                     <table>
-                        <thead><tr><th>Trip ID</th><th>Date</th><th>Pax</th><th>Amount</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>Trip ID</th>
+                                <th>Creation Date</th>
+                                <th>Advisor Email</th>
+                                <th>GDS Record</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             ${hostBookings.length === 0 ? '<tr><td colspan="4">No bookings found.</td></tr>' :
                 hostBookings.map(b => `
                                 <tr>
-                                    <td>${b.TripID || b.BookingID || b.id}</td>
-                                    <td>${b.TripCreationDate || b.Date || '-'}</td>
-                                    <td>${b.Passengers || 1}</td>
-                                    <td>${b.TotalAmount || '-'}</td>
+                                    <td>${b.TripID || b['Trip ID'] || b.BookingID || b.id}</td>
+                                    <td>${b.TripCreationDate || b['Trip Creation Date'] || b['TripCreatedDate'] || '-'}</td>
+                                    <td>${b.loggedInUserEmail || '-'}</td>
+                                    <td>${b.GDSRecordLocator || b['GDS Record Locator'] || b['GDSRecord'] || '-'}</td>
                                 </tr>`).join('')}
                         </tbody>
                     </table>
@@ -128,11 +137,10 @@ const AgencyReportView = () => {
                 </div>
             </header>
 
-            {/* Summary Cards - Removed CFP as requested */}
+            {/* Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
                 <StatCard label="Total Users" value={data.summary.totalUsers} icon={<Users size={24} />} delay={0} />
                 <StatCard label="Total Bookings" value={data.summary.totalBookings} icon={<BarChart3 size={24} />} delay={0.1} />
-                {/* Removed CFP StatCard */}
                 <StatCard label="Host Bookings" value={data.summary.hostBookings} icon={<Users size={24} />} color="var(--primary)" delay={0.2} />
             </div>
 
@@ -212,17 +220,16 @@ const AgencyReportView = () => {
                     </div>
                 </div>
 
-                {/* Host Bookings Summary - Modified as requested */}
+                {/* Host Bookings Summary */}
                 <div className="glass-card" style={{ padding: '1.5rem' }}>
                     <h3 style={{ marginBottom: '1rem' }}>Host Bookings Summary</h3>
                     <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <th style={{ textAlign: 'left', padding: '10px' }}>Date</th>
-                                    {/* Removed Type Column */}
-                                    <th style={{ textAlign: 'left', padding: '10px' }}>Pax</th>
-                                    <th style={{ textAlign: 'left', padding: '10px' }}>Amount</th>
+                                    <th style={{ textAlign: 'left', padding: '10px' }}>Creation Date</th>
+                                    <th style={{ textAlign: 'left', padding: '10px' }}>Trip ID</th>
+                                    <th style={{ textAlign: 'left', padding: '10px' }}>Advisor Email</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -232,9 +239,8 @@ const AgencyReportView = () => {
                                     hostBookings.slice(0, 50).map((b, i) => (
                                         <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                             <td style={{ padding: '10px' }}>{b.TripCreationDate ? new Date(b.TripCreationDate).toLocaleDateString() : '-'}</td>
-                                            {/* Removed Type Cell */}
-                                            <td style={{ padding: '10px' }}>{b.Passengers || 1}</td>
-                                            <td style={{ padding: '10px' }}>{b.TotalAmount || '-'}</td>
+                                            <td style={{ padding: '10px' }}>{b.TripID || b['Trip ID'] || b.BookingID || b.id}</td>
+                                            <td style={{ padding: '10px' }}>{b.loggedInUserEmail}</td>
                                         </tr>
                                     ))
                                 )}
