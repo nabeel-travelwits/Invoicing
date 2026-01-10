@@ -38,6 +38,8 @@ function App() {
   const [selectedAgency, setSelectedAgency] = useState(null);
   const [view, setView] = useState('dashboard'); // 'dashboard', 'pipeline', 'logs', 'cfp'
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showConfig, setShowConfig] = useState(null); // ID of agency being configured
   const [loadingProgress, setLoadingProgress] = useState({ visible: false, text: '', percentage: 0 });
   const [newAgency, setNewAgency] = useState({ id: '', name: '', email: '', userPrice: 15.0, segmentPrice: 0.05, sheetId: '1-DilrlkKOa9QJDBi87NhVv9LaXnY_dw0fHwjzfqmCyM' });
   const [excludedIds, setExcludedIds] = useState(() => {
