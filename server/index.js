@@ -611,8 +611,26 @@ app.get('/api/reports/users/:agencyId', asyncHandler(async (req, res) => {
 // Booking Reports
 app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
     try {
-        const SHEET_ID = '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ';
-        const allRows = await sheets.getRawSheetValues(SHEET_ID);
+        // Defined sheet IDs to pull data from
+        const SHEET_IDS = [
+            '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ', // 2026 Bookings
+            // 'NEW_SHEET_ID_HERE' // Placeholder for 2025 Bookings
+        ];
+
+        let allRows = [];
+
+        // Fetch from all sheets in parallel
+        const results = await Promise.allSettled(
+            SHEET_IDS.map(id => sheets.getRawSheetValues(id))
+        );
+
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+                allRows = [...allRows, ...result.value];
+            } else {
+                console.error(`Failed to fetch bookings from sheet index ${index} (${SHEET_IDS[index]}):`, result.reason);
+            }
+        });
 
         const cfpGrouped = {};
         const hostGrouped = {};
