@@ -30,6 +30,13 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
         setLoading(true);
         setProcessingStep('reconciling');
         setErrors([]);
+        setProgress(0);
+
+        // Start progress simulation since it's one big API call
+        const interval = setInterval(() => {
+            setProgress(prev => (prev >= 95 ? prev : prev + Math.floor(Math.random() * 5) + 2));
+        }, 400);
+
         try {
             const res = await fetch(`/api/batch-reconcile-cfp?period=${billingPeriod}`, {
                 method: 'POST',
@@ -37,6 +44,9 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
                 body: JSON.stringify({ agencyIds: agencies.map(a => a.id) })
             });
             const data = await res.json();
+
+            clearInterval(interval);
+            setProgress(100);
 
             // Enrich with default status
             const enriched = data.map(item => ({
@@ -47,9 +57,12 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
                 excelInfo: null
             }));
 
-            setBatchData(enriched);
-            setProcessingStep('ready');
+            setTimeout(() => {
+                setBatchData(enriched);
+                setProcessingStep('ready');
+            }, 500);
         } catch (err) {
+            clearInterval(interval);
             setErrors([{ message: 'Failed to carry out batch reconciliation: ' + err.message }]);
         } finally {
             setLoading(false);
@@ -133,11 +146,6 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
 
     return (
         <div className="animate-fade-in">
-            <ProgressBar
-                visible={processingStep === 'reconciling'}
-                text="Reconciling CFP Data..."
-                subtext={`Analyzing bookings for ${agencies.length} affiliate sites...`}
-            />
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <button className="btn btn-ghost" onClick={onBack} disabled={processingStep === 'sending'}>
@@ -167,6 +175,23 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
                     )}
                 </div>
             </header>
+
+            {processingStep === 'reconciling' && (
+                <div className="glass-card" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center', background: 'rgba(99, 102, 241, 0.05)', border: '1px dashed var(--primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                        <Loader2 className="animate-spin" size={24} color="var(--primary)" />
+                        <h3 style={{ margin: 0 }}>Reconciling CFP Data... {progress}%</h3>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginTop: '1rem', overflow: 'hidden', maxWidth: '400px', margin: '1rem auto' }}>
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            style={{ height: '100%', background: 'var(--primary)' }}
+                        />
+                    </div>
+                    <p style={{ color: 'var(--text-muted)' }}>Analyzing bookings for {agencies.length} affiliate sites. Please wait...</p>
+                </div>
+            )}
 
             {processingStep === 'sending' && (
                 <div className="glass-card" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
