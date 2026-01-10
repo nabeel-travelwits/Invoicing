@@ -133,6 +133,11 @@ const BatchCFPView = ({ agencies, onBack, user }) => {
 
     return (
         <div className="animate-fade-in">
+            <ProgressBar
+                visible={processingStep === 'reconciling'}
+                text="Reconciling CFP Data..."
+                subtext={`Analyzing bookings for ${agencies.length} affiliate sites...`}
+            />
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <button className="btn btn-ghost" onClick={onBack} disabled={processingStep === 'sending'}>
