@@ -14,7 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProgressBar } from './ProgressBar';
 
-const PipelineView = ({ agency: initialAgency, onBack, segmentOnly = false }) => {
+const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState({ visible: false, text: '' });
@@ -376,7 +376,8 @@ const PipelineView = ({ agency: initialAgency, onBack, segmentOnly = false }) =>
                                                     agencyName: data.agency.name,
                                                     amount: stripeInfo.total,
                                                     period: data.billingPeriod,
-                                                    invoiceType: segmentOnly ? 'CFP' : 'Host'
+                                                    invoiceType: segmentOnly ? 'CFP' : 'Host',
+                                                    loggedInUserEmail: user?.email
                                                 })
                                             });
                                             if (res.ok) {

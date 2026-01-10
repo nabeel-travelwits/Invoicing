@@ -404,9 +404,11 @@ app.post('/api/send-invoice/:invoiceId', asyncHandler(async (req, res) => {
         amount,
         period,
         invoiceId,
+        invoiceNumber: stripeInvoice.number, // The human-friendly number (e.g. DEPTL-1001)
         invoiceType: req.body.invoiceType || 'Host',
         status: 'Sent',
-        emailSent: emailSent
+        emailSent: emailSent,
+        loggedInUser: req.body.loggedInUserEmail // The person who clicked Send
     };
 
     try {

@@ -28,8 +28,10 @@ export default {
             amount: log.amount,
             period: log.period,
             invoiceId: log.invoice_id,
+            invoiceNumber: log.invoice_number,
             invoiceType: log.invoice_type,
-            emailSent: log.email_sent
+            emailSent: log.email_sent,
+            loggedInUser: log.logged_in_user
         }));
     },
 
@@ -43,8 +45,10 @@ export default {
             amount: parseFloat(logEntry.amount || 0),
             period: logEntry.period,
             invoice_id: logEntry.invoiceId,
+            invoice_number: logEntry.invoiceNumber,
             invoice_type: logEntry.invoiceType || 'Host',
-            email_sent: Boolean(logEntry.emailSent)
+            email_sent: Boolean(logEntry.emailSent),
+            logged_in_user: logEntry.loggedInUser
         };
 
         const { data, error } = await supabase

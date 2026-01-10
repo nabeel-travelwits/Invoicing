@@ -119,6 +119,7 @@ function App() {
     return (
       <div className="container" style={{ paddingTop: '4rem' }}>
         <PipelineView
+          user={user}
           agency={selectedAgency}
           segmentOnly={selectedAgency.isCFPMode}
           onBack={() => {
@@ -317,8 +318,9 @@ function App() {
                 <th style={{ padding: '1rem' }}>Agency</th>
                 <th style={{ padding: '1rem' }}>Type</th>
                 <th style={{ padding: '1rem' }}>Amount</th>
-                <th style={{ padding: '1rem' }}>Stripe ID</th>
-                <th style={{ padding: '1rem' }}>Email</th>
+                <th style={{ padding: '1rem' }}>Invoice #</th>
+                <th style={{ padding: '1rem' }}>Processed By</th>
+                <th style={{ padding: '1rem' }}>Emailed?</th>
               </tr>
             </thead>
             <tbody>
@@ -328,7 +330,8 @@ function App() {
                   <td style={{ padding: '1rem' }}>{log.agencyName}</td>
                   <td style={{ padding: '1rem' }}><span className={`badge ${log.invoiceType === 'CFP' ? 'badge-warning' : 'badge-success'}`}>{log.invoiceType || 'Host'}</span></td>
                   <td style={{ padding: '1rem' }}>${log.amount.toFixed(2)}</td>
-                  <td style={{ padding: '1rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.invoiceId}</td>
+                  <td style={{ padding: '1rem', fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.invoiceNumber || log.invoiceId}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.85rem' }}>{log.loggedInUser || 'System'}</td>
                   <td style={{ padding: '1rem' }}>
                     {log.emailSent ? <CheckCircle2 size={16} color="var(--success)" /> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                   </td>
