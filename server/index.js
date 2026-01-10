@@ -638,6 +638,10 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
         // Set to end of day for inclusive comparison
         toDate.setHours(23, 59, 59, 999);
 
+        if (allRows.length > 0) {
+            console.log('Sample Row Keys:', Object.keys(allRows[0])); // Debugging
+        }
+
         const cfpGrouped = {};
         const hostGrouped = {};
 
@@ -646,8 +650,9 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
             const status = row['tripStatus'] || '';
             const agencyName = (row['AgencyName'] || '').trim();
 
-            // Date Filtering
-            const dateStr = row['TripCreatedDate'] || row['BookingDate'] || row['Date'] || row['Created'];
+            // Date Filtering: Prioritize "TripCreationDate" as requested
+            const dateStr = row['TripCreationDate'] || row['Trip Creation Date'] || row['TripCreatedDate'] || row['Trip Created Date'];
+
             if (dateStr) {
                 const rowDate = new Date(dateStr);
                 if (!isNaN(rowDate.getTime())) {
