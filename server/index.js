@@ -531,6 +531,55 @@ app.get('/api/reconcile-cfp/:agencyId', asyncHandler(async (req, res) => {
     });
 }));
 
+app.post('/api/batch-reconcile-cfp', asyncHandler(async (req, res) => {
+    const { agencyIds } = req.body;
+    const period = req.query.period || new Date().toISOString().slice(0, 7);
+
+    // 1. Load CFP Pricing
+    const cfpConfigPath = path.join(__dirname, 'cfp_config.json');
+    let cfpPrices = {};
+    if (fs.existsSync(cfpConfigPath)) {
+        cfpPrices = JSON.parse(fs.readFileSync(cfpConfigPath, 'utf8'));
+    }
+
+    // 2. Fetch all bookings once
+    const groupedBookings = await cfpService.getAllBookingsGrouped();
+
+    const results = [];
+    for (const agencyId of agencyIds) {
+        try {
+            const agency = await db.getAgencyById(agencyId);
+            if (!agency) continue;
+
+            agency.segmentPrice = cfpPrices[agencyId] || 5.00;
+            const bookings = groupedBookings[agency.name] || [];
+
+            results.push({
+                agency,
+                reconciliation: {
+                    summary: {
+                        totalActive: 0,
+                        totalCharge: 0,
+                        totalMismatches: 0,
+                        note: 'CFP Mode'
+                    },
+                    normal: [], new: [], deactivated: [], mismatches: []
+                },
+                segmentUsage: [{
+                    name: 'CFP Bookings',
+                    count: bookings.length,
+                    rawData: bookings
+                }],
+                billingPeriod: period
+            });
+        } catch (err) {
+            console.error(`Batch item failed for ${agencyId}:`, err.message);
+        }
+    }
+
+    res.json(results);
+}));
+
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);

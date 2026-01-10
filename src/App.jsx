@@ -13,7 +13,8 @@ import {
   Database,
   Users,
   Settings,
-  LogOut
+  LogOut,
+  Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PipelineView from './components/PipelineView';
@@ -21,6 +22,7 @@ import ConfigModal from './components/ConfigModal';
 import { ProgressBar } from './components/ProgressBar';
 import Login from './components/Login';
 import SummaryView from './components/SummaryView';
+import BatchCFPView from './components/BatchCFPView';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -131,6 +133,21 @@ function App() {
     );
   }
 
+  if (view === 'batch-cfp') {
+    return (
+      <div className="container" style={{ paddingTop: '4rem' }}>
+        <BatchCFPView
+          user={user}
+          agencies={cfpAgencies}
+          onBack={() => {
+            setView('cfp');
+            fetchData();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ paddingTop: '4rem' }}>
       <ProgressBar
@@ -198,11 +215,14 @@ function App() {
       ) : view !== 'logs' ? (
         <div>
           {view === 'cfp' && (
-            <div className="glass-card" style={{ padding: '1rem', marginBottom: '2rem', borderLeft: '4px solid var(--warning)' }}>
-              <p style={{ fontSize: '0.9rem' }}>
-                <strong>CFP Mode Active:</strong>
-                Invoicing them will charge <strong> CFP Booking Fees only</strong>.
-              </p>
+            <div className="glass-card" style={{ padding: '2rem', marginBottom: '2rem', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem' }}>Batch Operations</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Automate reconciliation, PDF generation, and emailing for all CFP sites at once.</p>
+              </div>
+              <button className="btn btn-primary" onClick={() => setView('batch-cfp')}>
+                <Package size={18} /> Run Batch Invoicing
+              </button>
             </div>
           )}
 
