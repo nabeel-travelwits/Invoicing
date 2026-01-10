@@ -18,7 +18,8 @@ class CFPService {
                 const rowAgencyName = row['AgencyName'] || '';
 
                 if (userEmail.trim() !== '') return false;
-                if (status.toLowerCase() !== 'booked') return false;
+                // Removed status check
+                // if (status.toLowerCase() !== 'booked') return false;
 
                 // Ensure the row actually has a Trip ID or Booking ID
                 if (!row.id && !row.TripID && !row.BookingID && !row['Trip ID']) return false;
@@ -47,7 +48,8 @@ class CFPService {
                 const rowAgencyName = (row['AgencyName'] || '').trim();
 
                 if (userEmail.trim() !== '') return;
-                if (status.toLowerCase() !== 'booked') return;
+                // Removed status check
+                // if (status.toLowerCase() !== 'booked') return;
                 if (!row.id && !row.TripID && !row.BookingID && !row['Trip ID']) return;
                 if (!rowAgencyName) return;
 

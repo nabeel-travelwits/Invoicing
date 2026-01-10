@@ -660,8 +660,10 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
                 }
             }
 
-            // Must have valid status and agency
-            if (status.toLowerCase() !== 'booked') return;
+            // Must have valid agency
+            // Removed tripStatus check as per user request
+            // if (status.toLowerCase() !== 'booked') return;
+
             if (!row.id && !row.TripID && !row.BookingID && !row['Trip ID']) return;
             if (!agencyName) return;
 
