@@ -1,0 +1,20 @@
+[
+  {
+    "id": "1",
+    "name": "TravelWits",
+    "email": "nabeel@travelwits.com",
+    "userPrice": 15.0,
+    "segmentPrice": 0.05,
+    "status": "Active",
+    "sheetId": "1-DilrlkKOa9QJDBi87NhVv9LaXnY_dw0fHwjzfqmCyM"
+  },
+  {
+    "id": "2",
+    "name": "The Travel Team",
+    "email": "billing@thetravelteam.com",
+    "userPrice": 15.0,
+    "segmentPrice": 0.05,
+    "status": "Active",
+    "sheetId": "1-DilrlkKOa9QJDBi87NhVv9LaXnY_dw0fHwjzfqmCyM"
+  }
+]

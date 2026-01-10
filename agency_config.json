@@ -1,0 +1,64 @@
+{
+  "5": {
+    "segmentEnabled": true,
+    "minMonthlyAmount": 0,
+    "minUsers": 0
+  },
+  "135": {
+    "segmentEnabled": true,
+    "minMonthlyAmount": 0,
+    "minUsers": 0,
+    "pricingRanges": [
+      {
+        "min": 0,
+        "max": 29,
+        "price": 1000
+      },
+      {
+        "min": 30,
+        "max": 50,
+        "price": 1700
+      },
+      {
+        "min": 51,
+        "max": 100,
+        "price": 3300
+      },
+      {
+        "min": 101,
+        "max": 150,
+        "price": 4875
+      },
+      {
+        "min": 151,
+        "max": 200,
+        "price": 6400
+      },
+      {
+        "min": 201,
+        "max": 250,
+        "price": 7875
+      },
+      {
+        "min": 251,
+        "max": 300,
+        "price": 9300
+      },
+      {
+        "min": 301,
+        "max": 350,
+        "price": 10675
+      },
+      {
+        "min": 351,
+        "max": 400,
+        "price": 12000
+      },
+      {
+        "min": 401,
+        "max": 450,
+        "price": 13275
+      }
+    ]
+  }
+}
