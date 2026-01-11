@@ -74,9 +74,9 @@ const ReportsView = ({ user, logEvent, onBack }) => {
     };
 
     useEffect(() => {
-        if (reportType === 'invoices' && user) fetchInvoiceReports();
+        if (reportType === 'invoices' && !user) setReportType('bookings');
+        else if (reportType === 'invoices' && user) fetchInvoiceReports();
         else if (reportType === 'bookings') fetchBookingReports();
-        else if (reportType === 'users' && !user) setReportType('bookings');
     }, [reportType, dateRange, user]);
 
     const exportInvoicesToPDF = () => {
@@ -151,21 +151,19 @@ const ReportsView = ({ user, logEvent, onBack }) => {
             <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     {user && (
-                        <>
-                            <button
-                                className={`btn btn-sm ${reportType === 'invoices' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setReportType('invoices')}
-                            >
-                                <FileText size={16} /> <span className="hide-tablet">Invoice Reports</span>
-                            </button>
-                            <button
-                                className={`btn btn-sm ${reportType === 'users' ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setReportType('users')}
-                            >
-                                <Users size={16} /> <span className="hide-tablet">User Reports</span>
-                            </button>
-                        </>
+                        <button
+                            className={`btn btn-sm ${reportType === 'invoices' ? 'btn-primary' : 'btn-ghost'}`}
+                            onClick={() => setReportType('invoices')}
+                        >
+                            <FileText size={16} /> <span className="hide-tablet">Invoice Reports</span>
+                        </button>
                     )}
+                    <button
+                        className={`btn btn-sm ${reportType === 'users' ? 'btn-primary' : 'btn-ghost'}`}
+                        onClick={() => setReportType('users')}
+                    >
+                        <Users size={16} /> <span className="hide-tablet">User Reports</span>
+                    </button>
                     <button
                         className={`btn btn-sm ${reportType === 'bookings' ? 'btn-primary' : 'btn-ghost'}`}
                         onClick={() => { setReportType('bookings'); if (logEvent) logEvent('Changed Report View', 'Booking Reports'); }}

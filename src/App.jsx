@@ -57,7 +57,7 @@ function App() {
     return (
       <div className="container" style={{ paddingTop: '4rem' }}>
         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '3rem', color: 'white' }}>📊 Analytics Dashboard</h1>
+          <h1 style={{ fontSize: '3rem', color: 'white' }}> Analytics Dashboard</h1>
           <p style={{ color: 'rgba(255,255,255,0.7)' }}>General booking performance. Login for full access.</p>
         </div>
         <ReportsView user={null} />

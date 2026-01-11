@@ -241,7 +241,9 @@ const AgencyReportView = ({ isLoggedIn }) => {
                             <thead>
                                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                                     <th style={{ textAlign: 'left', padding: '10px' }}>Name</th>
+                                    <th style={{ textAlign: 'left', padding: '10px' }}>Email</th>
                                     <th style={{ textAlign: 'left', padding: '10px' }}>Signed Up</th>
+                                    <th style={{ textAlign: 'left', padding: '10px' }}>Deactivated</th>
                                     <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
                                 </tr>
                             </thead>
@@ -252,7 +254,9 @@ const AgencyReportView = ({ isLoggedIn }) => {
                                     data.users.slice(0, 50).map((u, i) => (
                                         <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                             <td style={{ padding: '10px' }}>{u.name}</td>
+                                            <td style={{ padding: '10px' }}>{u.email}</td>
                                             <td style={{ padding: '10px' }}>{u.activationDate ? new Date(u.activationDate).toLocaleDateString() : '-'}</td>
+                                            <td style={{ padding: '10px' }}>{u.deactivationDate ? new Date(u.deactivationDate).toLocaleDateString() : '-'}</td>
                                             <td style={{ padding: '10px' }}>
                                                 <span style={{
                                                     background: u.status === 'Active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
