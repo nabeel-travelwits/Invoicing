@@ -47,7 +47,7 @@ const Login = ({ onLogin }) => {
                     <div className="login-icon">
                         <ShieldCheck size={48} color="var(--primary)" />
                     </div>
-                    <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Billing Dashboard</h2>
+                    <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Travelwits Billing Dashboard</h2>
                     <p style={{ color: 'var(--text-muted)' }}>Secure Access Required</p>
                 </div>
 

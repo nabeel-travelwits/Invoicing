@@ -304,7 +304,7 @@ function App() {
       <header style={{ marginBottom: '2.5rem' }}>
         <div style={{ marginBottom: '1.5rem' }}>
           <h4 style={{ color: 'var(--primary)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ShieldCheck size={24} /> HOST AGENCY BILLING
+            <ShieldCheck size={28} /> Travelwits Invoicing Panel
           </h4>
           <h1 style={{ fontSize: '2.25rem', fontWeight: 800 }}>
             {view === 'dashboard' ? 'Host Agencies' : view === 'cfp' ? 'CFP Affiliate Sites' : 'Activity Logs'}
