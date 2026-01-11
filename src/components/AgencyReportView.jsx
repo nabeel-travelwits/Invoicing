@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const AgencyReportView = () => {
+const AgencyReportView = ({ isLoggedIn }) => {
     // Extract agency name from URL path: /reporting/:agencyName
     const pathParts = window.location.pathname.split('/');
     const agencyNameFromUrl = decodeURIComponent(pathParts[pathParts.length - 1]);
@@ -137,6 +137,15 @@ const AgencyReportView = () => {
 
     return (
         <div className="animate-fade-in" style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', color: 'white' }}>
+            {isLoggedIn && (
+                <button
+                    className="btn btn-ghost"
+                    onClick={() => window.location.href = '/'}
+                    style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}
+                >
+                    <ArrowLeft size={18} /> Back to Dashboard
+                </button>
+            )}
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{data.agencyName}</h1>

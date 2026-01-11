@@ -26,19 +26,18 @@ export default {
                 id: log.id,
                 timestamp: log.timestamp,
                 agencyId: log.agency_id,
-                agencyName: isInvoice ? log.agency_name : '', // Don't show 'System' or user email as agency name
+                // Robust agency name: use agency_name column, but only if it's not an email
+                agencyName: (log.agency_name && !log.agency_name.includes('@')) ? log.agency_name : (isInvoice ? (log.invoice_id && !log.invoice_id.includes('-') ? log.invoice_id : 'Host Agency') : ''),
                 amount: log.amount,
                 period: log.period,
                 invoiceId: log.invoice_id,
-                invoiceNumber: log.invoice_number || (isInvoice ? log.invoice_id : ''),
+                // Ensure invoiceNumber is never just an empty dash for real invoices
+                invoiceNumber: log.invoice_number || (isInvoice ? (log.invoice_id || 'PROCESSED') : ''),
                 invoiceType: log.invoice_type,
                 emailSent: log.email_sent,
-                // If status exists, it's the Action name. If not, use invoice_type as the Action.
-                status: log.status || (log.invoice_type === 'UI_Action' ? 'Action' : log.invoice_type),
-                // Details: prioritize status column if it equals invoice_id (redundant mapping), otherwise use invoice_id
-                details: log.status === log.invoice_id ? '' : log.invoice_id,
-                // Use logged_in_user column if it exists, fallback to redirected agency_name
-                loggedInUser: log.logged_in_user || (isInvoice ? 'System' : (log.agency_name || 'System'))
+                status: log.status || (isInvoice ? 'Sent' : 'Action'),
+                details: (log.invoice_id && log.invoice_id !== log.status) ? log.invoice_id : '',
+                loggedInUser: log.logged_in_user || (log.agency_name && log.agency_name.includes('@') ? log.agency_name : 'System')
             };
         });
     },
@@ -50,7 +49,7 @@ export default {
         const fullLog = {
             timestamp: logEntry.timestamp || new Date().toISOString(),
             agency_id: logEntry.agencyId?.toString() || '0',
-            agency_name: isInvoice ? (logEntry.agencyName || 'System') : (logEntry.loggedInUser || 'System'),
+            agency_name: logEntry.agencyName || 'System',
             amount: parseFloat(logEntry.amount || 0),
             period: logEntry.period || new Date().toISOString().slice(0, 7),
             invoice_id: logEntry.details || logEntry.invoiceId || 'Action',

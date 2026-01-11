@@ -32,7 +32,8 @@ import AgencyReportView from './components/AgencyReportView';
 
 function App() {
   if (window.location.pathname.startsWith('/reporting/')) {
-    return <AgencyReportView />;
+    const isLoggedIn = !!localStorage.getItem('user');
+    return <AgencyReportView isLoggedIn={isLoggedIn} />;
   }
 
   // Handle analytics/reports as potentially public or private routes
@@ -403,8 +404,8 @@ function App() {
                           {agencyStages[agency.id] && (
                             <span
                               className={`badge ${agencyStages[agency.id] === 'Invoice Sent' ? 'badge-success' :
-                                  agencyStages[agency.id] === 'Stripe Draft Created' ? 'badge-secondary' :
-                                    'badge-info'
+                                agencyStages[agency.id] === 'Stripe Draft Created' ? 'badge-secondary' :
+                                  'badge-info'
                                 }`}
                               style={{
                                 fontSize: '0.6rem',
