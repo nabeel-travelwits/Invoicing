@@ -10,11 +10,12 @@ import {
     Download,
     BarChart3,
     X,
-    Clock
+    Clock,
+    ArrowLeft
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const ReportsView = ({ user, logEvent }) => {
+const ReportsView = ({ user, logEvent, onBack }) => {
     const [loading, setLoading] = useState(false);
     const [reportType, setReportType] = useState('bookings');
     const [dateRange, setDateRange] = useState(() => {
@@ -133,6 +134,15 @@ const ReportsView = ({ user, logEvent }) => {
 
     return (
         <div className="animate-fade-in">
+            {onBack && (
+                <button
+                    className="btn btn-ghost"
+                    onClick={onBack}
+                    style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}
+                >
+                    <ArrowLeft size={18} /> Back to Dashboard
+                </button>
+            )}
             <header style={{ marginBottom: '2rem' }}>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Reports & Analytics</h1>
                 <p style={{ color: 'var(--text-muted)' }}>Comprehensive insights into invoices, users, and bookings</p>

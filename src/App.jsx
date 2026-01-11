@@ -282,7 +282,14 @@ function App() {
   if (view === 'reports') {
     return (
       <div className="container" style={{ paddingTop: '4rem' }}>
-        <ReportsView user={user} logEvent={logEvent} />
+        <ReportsView
+          user={user}
+          logEvent={logEvent}
+          onBack={() => {
+            setView('dashboard');
+            window.history.pushState({}, '', '/');
+          }}
+        />
       </div>
     );
   }
