@@ -48,6 +48,7 @@ h4 {
   font-family: 'Outfit', sans-serif;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: white;
 }
 
 /* Glassmorphism Containers */
@@ -59,6 +60,7 @@ h4 {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
 }
 
 .glass-card:hover {
@@ -164,6 +166,13 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
+/* Make native date/month picker icon white */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {
@@ -245,4 +254,101 @@ input:focus {
 .progress-subtext {
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.hide-mobile {
+  display: inline;
+}
+
+.hide-tablet {
+  display: inline;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.75rem !important;
+  font-size: 0.85rem !important;
+}
+
+@media (max-width: 1024px) {
+  .hide-tablet {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none;
+  }
+}
+
+/* Responsiveness */
+@media (max-width: 1024px) {
+  .container {
+    padding: 1.5rem;
+  }
+
+  .glass-card {
+    padding: 0.75rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  h1 {
+    font-size: 2rem !important;
+  }
+
+  h2 {
+    font-size: 1.5rem !important;
+  }
+
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .glass-card {
+    padding: 1rem !important;
+  }
+
+  /* Navigation adjustments */
+  nav,
+  .nav-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch !important;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 0.6rem 1rem;
+  }
+
+  /* Table responsiveness */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 600px;
+    /* Force scroll for tables on small screens */
+  }
+
+  /* Stats stack */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.75rem !important;
+  }
+
+  .container {
+    padding: 0.75rem;
+  }
 }

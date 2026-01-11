@@ -67,6 +67,40 @@ class BaserowService {
             return [];
         }
     }
+    async getAllRows() {
+        const tableId = process.env.BASEROW_USERS_TABLE_ID;
+        const includeFields = ['Email', 'Name', 'Signed Up', 'Deactivated Date', 'Active', 'TravelAgencies'];
+        const fieldsParam = includeFields.join(',');
+
+        try {
+            const firstPageUrl = `${this.baseUrl}/database/rows/table/${tableId}/?user_field_names=true&size=200&include=${fieldsParam}`;
+            const firstResponse = await axios.get(firstPageUrl, {
+                headers: { Authorization: `Token ${this.token}` }
+            });
+
+            const totalCount = firstResponse.data.count;
+            const totalPages = Math.ceil(totalCount / 200);
+            let allRows = firstResponse.data.results;
+
+            if (totalPages > 1) {
+                const pagePromises = [];
+                for (let i = 2; i <= totalPages; i++) {
+                    const pageUrl = `${firstPageUrl}&page=${i}`;
+                    pagePromises.push(axios.get(pageUrl, {
+                        headers: { Authorization: `Token ${this.token}` }
+                    }));
+                }
+                const responses = await Promise.all(pagePromises);
+                responses.forEach(res => {
+                    allRows = allRows.concat(res.data.results);
+                });
+            }
+            return allRows;
+        } catch (error) {
+            console.error('Baserow Fetch Error:', error.message);
+            return [];
+        }
+    }
 }
 
 export default new BaserowService();

@@ -39,9 +39,36 @@ class GoogleSheetsService {
     async getRawSheetValues(sheetId) {
         try {
             const doc = await this.getDoc(sheetId);
-            const sheet = doc.sheetsByIndex[0]; // Assume first tab
-            const rows = await sheet.getRows();
-            return rows.map(r => r.toObject());
+            let allRows = [];
+
+            console.log(`[GoogleSheets] Fetching rows from all tabs for ID: ${sheetId}...`);
+
+            for (const sheet of doc.sheetsByIndex) {
+                // Skip tabs that are clearly not booking data (e.g. roster, config)
+                if (sheet.title.toLowerCase().includes('roster') ||
+                    sheet.title.toLowerCase().includes('config') ||
+                    sheet.title.toLowerCase().includes('test')) {
+                    continue;
+                }
+
+                console.log(` - Reading Tab: ${sheet.title}...`);
+                const rows = await sheet.getRows();
+                const data = rows.map(r => r.toObject());
+
+                // Only add if it looks like a booking tab (has some keys)
+                if (data.length > 0) {
+                    const sample = data[0];
+                    const keys = Object.keys(sample).map(k => k.toLowerCase());
+                    if (keys.includes('agencyname') || keys.includes('tripid')) {
+                        allRows = allRows.concat(data);
+                    } else {
+                        console.log(`   - Skipping Tab ${sheet.title}: No booking headers found.`);
+                    }
+                }
+            }
+
+            console.log(`[GoogleSheets] Total rows fetched from all relevant tabs: ${allRows.length}`);
+            return allRows;
         } catch (e) {
             console.error('Google Sheets Read Error:', e.message);
             return [];

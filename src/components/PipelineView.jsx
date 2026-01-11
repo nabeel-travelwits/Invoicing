@@ -109,6 +109,7 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
             const result = await response.json();
             setExcelInfo(result);
             setStep('excel');
+            logEvent('Generated Excel', `Period: ${billingPeriod}`, initialAgency.id, initialAgency.name);
         } catch (err) {
             alert('Failed to generate Excel');
         } finally {
@@ -133,6 +134,7 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
             const result = await response.json();
             setStripeInfo(result);
             setStep('stripe');
+            logEvent('Created Stripe Draft', `Amount: $${data?.reconciliation?.summary?.totalCharge?.toFixed(2)}`, initialAgency.id, initialAgency.name);
         } catch (err) {
             alert(err.message || 'Failed to create Stripe invoice');
         } finally {
@@ -384,6 +386,7 @@ const PipelineView = ({ user, agency: initialAgency, onBack, segmentOnly = false
                                             if (res.ok) {
                                                 setShowSuccessModal(true);
                                                 setStep('done');
+                                                logEvent('Finalized & Sent Invoice', `Invoice: ${stripeInfo.invoiceNumber}`, initialAgency.id, initialAgency.name);
                                             }
                                         } catch (err) {
                                             alert('Error sending invoice');

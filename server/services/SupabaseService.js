@@ -20,42 +20,90 @@ export default {
         if (error) throw error;
 
         // Map back to camelCase for frontend compatibility
-        return (data || []).map(log => ({
-            id: log.id,
-            timestamp: log.timestamp,
-            agencyId: log.agency_id,
-            agencyName: log.agency_name,
-            amount: log.amount,
-            period: log.period,
-            invoiceId: log.invoice_id,
-            invoiceNumber: log.invoice_number,
-            invoiceType: log.invoice_type,
-            emailSent: log.email_sent,
-            loggedInUser: log.logged_in_user
-        }));
+        return (data || []).map(log => {
+            const isInvoice = log.invoice_type === 'Host' || log.invoice_type === 'CFP';
+            return {
+                id: log.id,
+                timestamp: log.timestamp,
+                agencyId: log.agency_id,
+                agencyName: isInvoice ? log.agency_name : '', // Don't show 'System' or user email as agency name
+                amount: log.amount,
+                period: log.period,
+                invoiceId: log.invoice_id,
+                invoiceNumber: log.invoice_number || (isInvoice ? log.invoice_id : ''),
+                invoiceType: log.invoice_type,
+                emailSent: log.email_sent,
+                // If status exists, it's the Action name. If not, use invoice_type as the Action.
+                status: log.status || (log.invoice_type === 'UI_Action' ? 'Action' : log.invoice_type),
+                // Details: prioritize status column if it equals invoice_id (redundant mapping), otherwise use invoice_id
+                details: log.status === log.invoice_id ? '' : log.invoice_id,
+                // Use logged_in_user column if it exists, fallback to redirected agency_name
+                loggedInUser: log.logged_in_user || (isInvoice ? 'System' : (log.agency_name || 'System'))
+            };
+        });
     },
 
     async saveLog(logEntry) {
-        // Map camelCase keys to snake_case for Supabase columns
-        // Note: 'status' column does not exist in the current schema, removing it.
-        const mappedLog = {
+        const isInvoice = logEntry.invoiceType === 'Host' || logEntry.invoiceType === 'CFP';
+
+        // Try saving with the full NEW schema first
+        const fullLog = {
             timestamp: logEntry.timestamp || new Date().toISOString(),
-            agency_id: logEntry.agencyId?.toString(),
-            agency_name: logEntry.agencyName,
+            agency_id: logEntry.agencyId?.toString() || '0',
+            agency_name: isInvoice ? (logEntry.agencyName || 'System') : (logEntry.loggedInUser || 'System'),
             amount: parseFloat(logEntry.amount || 0),
-            period: logEntry.period,
-            invoice_id: logEntry.invoiceId,
-            invoice_number: logEntry.invoiceNumber,
-            invoice_type: logEntry.invoiceType || 'Host',
+            period: logEntry.period || new Date().toISOString().slice(0, 7),
+            invoice_id: logEntry.details || logEntry.invoiceId || 'Action',
+            invoice_type: logEntry.invoiceType || 'System',
             email_sent: Boolean(logEntry.emailSent),
-            logged_in_user: logEntry.loggedInUser
+            status: logEntry.status || logEntry.action || 'Action',
+            logged_in_user: logEntry.loggedInUser || 'System',
+            invoice_number: logEntry.invoiceNumber || (isInvoice ? logEntry.invoiceId : '')
         };
 
-        const { data, error } = await supabase
-            .from('invoicing_logs')
-            .insert([mappedLog]);
+        try {
+            const { data, error } = await supabase
+                .from('invoicing_logs')
+                .insert([fullLog])
+                .select();
 
-        if (error) throw error;
+            if (!error) {
+                console.log('SUPABASE SUCCESS (New Schema):', data?.[0]?.id);
+                return data;
+            }
+
+            // If error isn't about missing columns, throw it
+            if (!error.message.includes('Could not find') && !error.message.includes('column')) {
+                throw error;
+            }
+
+            console.warn('Supabase new schema columns missing, falling back to legacy mapping...');
+        } catch (e) {
+            console.warn('Supabase new schema insert failed, trying fallback...', e.message);
+        }
+
+        // FALLBACK: Use only columns guaranteed to exist in the original schema
+        const fallbackLog = {
+            timestamp: logEntry.timestamp || new Date().toISOString(),
+            agency_id: logEntry.agencyId?.toString() || '0',
+            agency_name: isInvoice ? (logEntry.agencyName || 'System') : (logEntry.loggedInUser || 'System'),
+            amount: parseFloat(logEntry.amount || 0),
+            period: logEntry.period || new Date().toISOString().slice(0, 7),
+            invoice_id: logEntry.invoiceId || logEntry.status || 'Action',
+            invoice_type: logEntry.invoiceType || 'System',
+            email_sent: Boolean(logEntry.emailSent)
+        };
+
+        const { data, error: fbError } = await supabase
+            .from('invoicing_logs')
+            .insert([fallbackLog])
+            .select();
+
+        if (fbError) {
+            console.error('Supabase Fallback Insert Error:', fbError.message);
+            throw fbError;
+        }
+        console.log('SUPABASE SUCCESS (Fallback Schema):', data?.[0]?.id);
         return data;
     },
 
@@ -93,6 +141,46 @@ export default {
             .single();
 
         if (error && error.code !== 'PGRST116') throw error;
+        return data;
+    },
+
+    // --- Agency Stages ---
+    async getAgencyStages() {
+        const resetDate = new Date();
+        resetDate.setDate(resetDate.getDate() - 29);
+
+        try {
+            const { data, error } = await supabase
+                .from('agency_stages')
+                .select('*')
+                .gt('updated_at', resetDate.toISOString());
+
+            if (error) {
+                // Return empty if table doesn't exist yet
+                if (error.code === 'PGRST116' || error.message.includes('relation') || error.message.includes('not found')) {
+                    console.warn('Agency stages table not found, skipping...');
+                    return [];
+                }
+                throw error;
+            }
+            return data || [];
+        } catch (e) {
+            console.warn('Silent failure fetching stages:', e.message);
+            return [];
+        }
+    },
+
+    async updateAgencyStage(agencyId, stage, updatedBy) {
+        const { data, error } = await supabase
+            .from('agency_stages')
+            .upsert({
+                agency_id: agencyId.toString(),
+                stage,
+                updated_at: new Date(),
+                updated_by: updatedBy
+            }, { onConflict: 'agency_id' });
+
+        if (error) throw error;
         return data;
     }
 };

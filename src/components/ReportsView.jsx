@@ -8,17 +8,25 @@ import {
     Building2,
     Loader2,
     Download,
-    BarChart3
+    BarChart3,
+    X,
+    Clock
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const ReportsView = () => {
+const ReportsView = ({ user, logEvent }) => {
     const [loading, setLoading] = useState(false);
-    const [reportType, setReportType] = useState('invoices');
-    const [dateRange, setDateRange] = useState({
-        from: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 10),
-        to: new Date().toISOString().slice(0, 10)
+    const [reportType, setReportType] = useState('bookings');
+    const [dateRange, setDateRange] = useState(() => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return {
+            from: start.toISOString().slice(0, 10),
+            to: end.toISOString().slice(0, 10)
+        };
     });
+
 
     const [invoiceData, setInvoiceData] = useState({ host: [], cfp: [] });
     const [userData, setUserData] = useState([]);
@@ -65,9 +73,10 @@ const ReportsView = () => {
     };
 
     useEffect(() => {
-        if (reportType === 'invoices') fetchInvoiceReports();
+        if (reportType === 'invoices' && user) fetchInvoiceReports();
         else if (reportType === 'bookings') fetchBookingReports();
-    }, [reportType, dateRange]);
+        else if (reportType === 'users' && !user) setReportType('bookings');
+    }, [reportType, dateRange, user]);
 
     const exportInvoicesToPDF = () => {
         const printWindow = window.open('', '_blank');
@@ -130,40 +139,44 @@ const ReportsView = () => {
             </header>
 
             <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {user && (
+                        <>
+                            <button
+                                className={`btn btn-sm ${reportType === 'invoices' ? 'btn-primary' : 'btn-ghost'}`}
+                                onClick={() => setReportType('invoices')}
+                            >
+                                <FileText size={16} /> <span className="hide-tablet">Invoice Reports</span>
+                            </button>
+                            <button
+                                className={`btn btn-sm ${reportType === 'users' ? 'btn-primary' : 'btn-ghost'}`}
+                                onClick={() => setReportType('users')}
+                            >
+                                <Users size={16} /> <span className="hide-tablet">User Reports</span>
+                            </button>
+                        </>
+                    )}
                     <button
-                        className={`btn ${reportType === 'invoices' ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={() => setReportType('invoices')}
+                        className={`btn btn-sm ${reportType === 'bookings' ? 'btn-primary' : 'btn-ghost'}`}
+                        onClick={() => { setReportType('bookings'); if (logEvent) logEvent('Changed Report View', 'Booking Reports'); }}
                     >
-                        <FileText size={18} /> Invoice Reports
-                    </button>
-                    <button
-                        className={`btn ${reportType === 'users' ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={() => setReportType('users')}
-                    >
-                        <Users size={18} /> User Reports
-                    </button>
-                    <button
-                        className={`btn ${reportType === 'bookings' ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={() => setReportType('bookings')}
-                    >
-                        <BarChart3 size={18} /> Booking Reports
+                        <BarChart3 size={16} /> <span className="hide-tablet">Booking Reports</span>
                     </button>
 
-                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <Calendar size={18} color="var(--text-muted)" />
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}>
+                        <Calendar size={16} color="var(--text-muted)" />
                         <input
                             type="date"
                             value={dateRange.from}
                             onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                            style={{ padding: '0.5rem' }}
+                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
                         />
-                        <span style={{ color: 'var(--text-muted)' }}>to</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>to</span>
                         <input
                             type="date"
                             value={dateRange.to}
                             onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                            style={{ padding: '0.5rem' }}
+                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
                         />
                     </div>
                 </div>
@@ -314,7 +327,7 @@ const UserReportSection = ({ onSelectAgency, userData, selectedAgency }) => {
     return (
         <div style={{ display: 'grid', gap: '2rem' }}>
             <div className="glass-card" style={{ padding: '2rem' }}>
-                <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Select Agency for User Report</h2>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: 'white' }}>Select Agency for User Report</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
                     {agencies.map(agency => (
                         <button
@@ -506,6 +519,9 @@ const BookingReportSection = ({ data, dateRange }) => {
                     <StatCard label="Total Bookings" value={data.total} icon={<BarChart3 size={20} />} />
                     <StatCard label="CFP Bookings" value={data.cfp} icon={<BarChart3 size={20} />} color="var(--warning)" />
                     <StatCard label="Host Bookings" value={data.host} icon={<BarChart3 size={20} />} color="var(--primary)" />
+                    <StatCard label="Cancelled Bookings" value={data.statuses?.Cancelled || 0} icon={<X size={20} />} color="var(--error)" />
+                    <StatCard label="Quotes" value={data.statuses?.Quote || 0} icon={<FileText size={20} />} color="var(--success)" />
+                    <StatCard label="On Hold Bookings" value={data.statuses?.['On Hold'] || 0} icon={<Clock size={20} />} color="var(--text-muted)" />
                 </div>
 
                 {/* CFP Bookings by Agency */}

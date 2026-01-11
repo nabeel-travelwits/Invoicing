@@ -56,7 +56,36 @@ app.post('/api/login', asyncHandler(async (req, res) => {
         { expiresIn: '24h' }
     );
 
+    // LOG: Login
+    try {
+        console.log(`LOGGING LOGIN for ${user.email}...`);
+        await supabaseService.saveLog({
+            agencyName: 'System',
+            invoiceType: 'Auth',
+            status: 'Login',
+            loggedInUser: user.email,
+            agencyId: '0'
+        });
+        console.log('LOGIN LOG SAVED SUCCESSFULLY');
+    } catch (e) {
+        console.error('ERROR SAVING LOGIN LOG:', e.message);
+    }
+
     res.json({ token, user: { email: user.email, name: user.full_name } });
+}));
+
+app.get('/api/debug-log', asyncHandler(async (req, res) => {
+    try {
+        const log = await supabaseService.saveLog({
+            agencyName: 'Debug Test',
+            invoiceType: 'System',
+            status: 'Manual Debug ' + new Date().toISOString(),
+            agencyId: 'DEBUG'
+        });
+        res.json({ success: true, log });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 }));
 
 // Middleware to protect routes (optional for now but good for future)
@@ -72,7 +101,6 @@ const authenticate = (req, res, next) => {
     }
 };
 
-// --- Logs ---
 app.get('/api/logs', asyncHandler(async (req, res) => {
     try {
         const logs = await supabaseService.getLogs();
@@ -82,6 +110,43 @@ app.get('/api/logs', asyncHandler(async (req, res) => {
         const filePath = path.join(__dirname, 'logs.json');
         const logs = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : [];
         res.json(logs);
+    }
+}));
+
+app.post('/api/logs/event', asyncHandler(async (req, res) => {
+    const { action, details, agencyId, agencyName, userEmail } = req.body;
+    try {
+        await supabaseService.saveLog({
+            agencyId,
+            agencyName,
+            status: action,
+            invoiceId: details,
+            invoiceType: 'UI_Action',
+            loggedInUser: userEmail || 'System'
+        });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+}));
+
+// --- Agency Stages ---
+app.get('/api/agencies/stages', asyncHandler(async (req, res) => {
+    try {
+        const stages = await supabaseService.getAgencyStages();
+        res.json(stages);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+}));
+
+app.post('/api/agencies/stages', asyncHandler(async (req, res) => {
+    const { agencyId, stage, updatedBy } = req.body;
+    try {
+        await supabaseService.updateAgencyStage(agencyId, stage, updatedBy);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 }));
 
@@ -155,6 +220,22 @@ app.put('/api/agencies/:id', asyncHandler(async (req, res) => {
 
     agencies = agencies.map(a => a.id === id ? { ...a, userPrice, segmentPrice, email: email || a.email } : a);
     fs.writeFileSync(filePath, JSON.stringify(agencies, null, 2));
+
+    // LOG: Agency Update
+    try {
+        await supabaseService.saveLog({
+            timestamp: new Date().toISOString(),
+            agencyId: id,
+            agencyName: agencies.find(a => a.id === id)?.name || 'Unknown',
+            invoiceType: 'Config',
+            status: 'Updated Agency Profile',
+            invoiceId: `P: ${userPrice}/${segmentPrice}, E: ${email || '-'}`,
+            loggedInUser: req.body.loggedInUserEmail || 'System'
+        });
+    } catch (e) {
+        console.warn('Silent log failure on agency update:', e.message);
+    }
+
     res.json({ success: true });
 }));
 
@@ -163,6 +244,16 @@ app.post('/api/agency-config/:id', asyncHandler(async (req, res) => {
     const config = req.body;
     try {
         await supabaseService.saveAgencyConfig(id, config);
+        // LOG: Config Update
+        await supabaseService.saveLog({
+            timestamp: new Date().toISOString(),
+            agencyId: id,
+            agencyName: 'Agency Config',
+            invoiceType: 'Config',
+            status: 'Updated Automation',
+            invoiceId: Object.keys(config || {}).join(', '),
+            loggedInUser: req.body.loggedInUserEmail || 'System'
+        });
     } catch (e) {
         configService.updateConfig(id, config);
     }
@@ -221,6 +312,18 @@ app.get('/api/reconcile/:agencyId', asyncHandler(async (req, res) => {
             sheets.getTestEmails(agency.sheetId)
         ]);
 
+        // LOG: Reconciliation Run
+        try {
+            await supabaseService.saveLog({
+                agencyId,
+                agencyName: agency.name,
+                status: 'Run Reconciliation',
+                invoiceId: `Period: ${billingPeriod}`,
+                invoiceType: 'Pipeline',
+                loggedInUser: req.query.userEmail || 'System'
+            });
+        } catch (e) { }
+
         const baseReconciliation = reconcileUsers(baserowUsers, sheetUsers, billingPeriod, agency.userPrice, testEmails);
 
         // Apply Centralized Pricing Rules
@@ -253,6 +356,11 @@ app.post('/api/generate-excel/:agencyId', asyncHandler(async (req, res) => {
     const host = req.get('host');
     const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
     result.downloadUrl = `${protocol}://${host}/exports/${result.fileName}`;
+
+    // AUTO STAGE: Draft Created
+    try {
+        await supabaseService.updateAgencyStage(agencyId, 'Draft Created', req.body.userEmail || 'System');
+    } catch (e) { }
 
     res.json(result);
 }));
@@ -288,6 +396,11 @@ app.post('/api/create-invoice/:agencyId', asyncHandler(async (req, res) => {
     // Finalize the invoice immediately to generate a Hosted Preview URL
     // Note: We set auto_advance: false, so it won't send the email yet.
     const finalizedInvoice = await stripe.finalizeInvoice(invoice.id);
+
+    // AUTO STAGE: Stripe Draft
+    try {
+        await supabaseService.updateAgencyStage(agencyId, 'Stripe Draft Created', req.body.userEmail || 'System');
+    } catch (e) { }
 
     res.json({
         stripeInvoiceId: finalizedInvoice.id,
@@ -420,6 +533,11 @@ app.post('/api/send-invoice/:invoiceId', asyncHandler(async (req, res) => {
         logs.unshift(newLog);
         fs.writeFileSync(logPath, JSON.stringify(logs.slice(0, 100), null, 2));
     }
+
+    // AUTO STAGE: Sent
+    try {
+        await supabaseService.updateAgencyStage(agencyId, 'Invoice Sent', req.body.loggedInUserEmail || 'System');
+    } catch (e) { }
 
     res.json({ success: true, log: newLog });
 }));
@@ -613,8 +731,7 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
     try {
         // Defined sheet IDs to pull data from
         const SHEET_IDS = [
-            '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ', // 2026 Bookings
-            '14qLdZshoPWppAVVCZA4pkotYBmMEY6QtRxzAb8oY-Jk'  // 2025 Bookings
+            '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ' // 2026 Bookings Only
         ];
 
         let allRows = [];
@@ -635,8 +752,24 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
         const { from, to } = req.query;
         const fromDate = from ? new Date(from) : new Date('2000-01-01');
         const toDate = to ? new Date(to) : new Date();
-        // Set to end of day for inclusive comparison
         toDate.setHours(23, 59, 59, 999);
+
+        // Build Email-to-Agency Map for rows with missing AgencyName
+        const emailAgencyMap = new Map();
+        try {
+            const allBaserowUsers = await baserow.getAllRows();
+            allBaserowUsers.forEach(u => {
+                const email = u.Email?.toLowerCase().trim();
+                const agencies = u.TravelAgencies || [];
+                if (email && agencies.length > 0) {
+                    // Use the first agency as primary
+                    emailAgencyMap.set(email, agencies[0].value);
+                }
+            });
+            console.log(`[Report Debug] Built attribution map for ${emailAgencyMap.size} users`);
+        } catch (e) {
+            console.error('[Report Debug] Failed to build attribution map:', e.message);
+        }
 
         if (allRows.length > 0) {
             console.log('Sample Row Keys:', Object.keys(allRows[0])); // Debugging
@@ -644,28 +777,111 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
 
         const cfpGrouped = {};
         const hostGrouped = {};
+        const statusCounts = { 'Booked': 0, 'Cancelled': 0, 'Quote': 0, 'On Hold': 0 };
 
-        allRows.forEach(row => {
-            const userEmail = row['loggedInUserEmail'] || '';
-            const status = row['tripStatus'] || '';
-            const agencyName = (row['AgencyName'] || '').trim();
+        let skippedNoDate = 0;
+        let skippedInvalidDate = 0;
+        let skippedOutOfRange = 0;
+        let skippedNoId = 0;
+        let skippedNoAgency = 0;
 
-            // Date Filtering: Prioritize "TripCreationDate" as requested
-            const dateStr = row['TripCreationDate'] || row['Trip Creation Date'] || row['TripCreatedDate'] || row['Trip Created Date'];
+        allRows.forEach((row, idx) => {
+            // Normalize keys for consistent access
+            const normalized = {};
+            Object.keys(row).forEach(k => {
+                const cleanKey = k.toLowerCase().replace(/\s+/g, '');
+                normalized[cleanKey] = row[k];
+            });
 
-            if (dateStr) {
-                const rowDate = new Date(dateStr);
-                if (!isNaN(rowDate.getTime())) {
-                    if (rowDate < fromDate || rowDate > toDate) return;
+            const userEmail = normalized['loggedinuseremail'] || '';
+            const status = normalized['tripstatus'] || normalized['status'] || '';
+            let agencyName = (normalized['agencyname'] || normalized['agency'] || normalized['hostagency'] || normalized['travelagency'] || row['AgencyName'] || '').trim();
+
+            // Fallback to email-based map if agency name is missing
+            if (!agencyName && userEmail.trim()) {
+                const mappedAgency = emailAgencyMap.get(userEmail.toLowerCase().trim());
+                if (mappedAgency) {
+                    agencyName = mappedAgency;
                 }
             }
 
-            // Must have valid agency
-            // Removed tripStatus check as per user request
-            // if (status.toLowerCase() !== 'booked') return;
+            if (!agencyName) {
+                skippedNoAgency++;
+                return;
+            }
 
-            if (!row.id && !row.TripID && !row.BookingID && !row['Trip ID']) return;
-            if (!agencyName) return;
+            // Date Filtering
+            // Dynamic Date Key Search
+            let dateStr = normalized['tripcreateddate'] || normalized['tripstartdate'] || normalized['tripcreationdate'] || normalized['bookingdate'] || normalized['date'] || normalized['created'] || normalized['tripdate'] || normalized['creationdate'] || normalized['datecreated'];
+
+            if (!dateStr) {
+                const dateKey = Object.keys(normalized).find(k =>
+                    (k.includes('date') || k.includes('created')) &&
+                    !k.includes('update') && !k.includes('modify') &&
+                    !k.includes('checkin') && !k.includes('checkout')
+                );
+                if (dateKey) dateStr = normalized[dateKey];
+            }
+
+            if (!dateStr) {
+                // Strict filter active
+                skippedNoDate++;
+                return;
+            }
+
+            let rowDate = new Date(dateStr);
+
+            // Excel Serial Date Fallback (e.g. "45321")
+            if (isNaN(rowDate.getTime()) && !isNaN(dateStr) && Number(dateStr) > 20000) {
+                // Excel base date (Dec 30 1899)
+                const serial = Number(dateStr);
+                rowDate = new Date((serial - 25569) * 86400 * 1000);
+            }
+
+            // DD/MM/YYYY Fallback
+            if (isNaN(rowDate.getTime())) {
+                const parts = dateStr.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+                if (parts) {
+                    rowDate = new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]));
+                }
+            }
+
+            // Verbose invalid log
+            if (isNaN(rowDate.getTime())) {
+                skippedInvalidDate++;
+                return;
+            }
+            if (rowDate < fromDate || rowDate > toDate) {
+                skippedOutOfRange++;
+                return;
+            }
+
+            const tripId = normalized['tripid'] || normalized['bookingid'] || row.id || `idx-${idx}`;
+
+            if (!tripId) {
+                skippedNoId++;
+                return;
+            }
+            if (!agencyName) {
+                skippedNoAgency++;
+                return;
+            }
+
+            // Count Statuses
+            const statusKey = status.toLowerCase().trim();
+            if (statusKey.includes('cancel')) {
+                if (!statusCounts['Cancelled']) statusCounts['Cancelled'] = 0;
+                statusCounts['Cancelled']++;
+            } else if (statusKey.includes('quote')) {
+                if (!statusCounts['Quote']) statusCounts['Quote'] = 0;
+                statusCounts['Quote']++;
+            } else if (statusKey.includes('hold')) {
+                if (!statusCounts['On Hold']) statusCounts['On Hold'] = 0;
+                statusCounts['On Hold']++;
+            } else if (statusKey.includes('booked')) {
+                if (!statusCounts['Booked']) statusCounts['Booked'] = 0;
+                statusCounts['Booked']++;
+            }
 
             // CFP bookings: no logged-in user
             if (userEmail.trim() === '') {
@@ -678,6 +894,15 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
                 hostGrouped[agencyName].push(row);
             }
         });
+
+        console.log(`[Report Debug] Row Processing Summary:`);
+        console.log(`- Total Rows Fetched: ${allRows.length}`);
+        console.log(`- Skipped (No Date Column): ${skippedNoDate}`);
+        console.log(`- Skipped (Invalid Date Format): ${skippedInvalidDate}`);
+        console.log(`- Skipped (Out of Date Range): ${skippedOutOfRange}`);
+        console.log(`- Skipped (No Trip ID): ${skippedNoId}`);
+        console.log(`- Skipped (No Agency Name): ${skippedNoAgency}`);
+        console.log(`- Total Counted: ${Object.values(cfpGrouped).flat().length + Object.values(hostGrouped).flat().length}`);
 
         const cfpByAgency = Object.entries(cfpGrouped).map(([agencyName, bookings]) => ({
             agencyName,
@@ -698,6 +923,7 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
             total: cfpCount + hostCount,
             cfp: cfpCount,
             host: hostCount,
+            statuses: statusCounts,
             cfpByAgency: cfpByAgency.sort((a, b) => b.count - a.count),
             hostByAgency: hostByAgency.sort((a, b) => b.count - a.count),
             byDate: []
@@ -710,131 +936,290 @@ app.get('/api/reports/bookings', asyncHandler(async (req, res) => {
 
 // Agency Specific Report (Public/Private)
 app.get('/api/reports/agency-details', asyncHandler(async (req, res) => {
-    const { name, from, to } = req.query;
-    if (!name) return res.status(400).json({ error: 'Agency Name is required' });
+    try {
+        const { name, from, to } = req.query;
+        if (!name) return res.status(400).json({ error: 'Agency Name is required' });
 
-    const cleanName = decodeURIComponent(name).trim();
+        const cleanName = decodeURIComponent(name).trim();
 
-    // 1. Resolve Agency ID from Name (needed for User lookup)
-    const airtableAgencies = await airtable.getFilterList();
-    const dbAgencies = await db.getAgencies();
+        const airtableAgencies = await airtable.getFilterList();
+        const dbAgencies = await db.getAgencies();
 
-    // Normalize string helper
-    const norm = (str) => (str || '').toLowerCase().trim();
-    const target = norm(cleanName);
+        const norm = (str) => (str || '').toLowerCase().trim();
+        const target = norm(cleanName);
+        const sTarget = target.replace(/[^a-z0-9]/g, '');
 
-    let agencyInfo = airtableAgencies.find(a => norm(a.name) === target);
+        let agencyInfo = airtableAgencies.find(a => norm(a.name) === target);
 
-    // Fallback: Check DB if not found in Airtable
-    if (!agencyInfo) {
-        agencyInfo = dbAgencies.find(a => norm(a.name) === target);
-    }
-
-    console.log(`[Report Debug] Request for '${cleanName}' -> Found ID: ${agencyInfo ? agencyInfo.id : 'NOT FOUND'}`);
-
-    // 2. Fetch Users (if ID found)
-    let users = [];
-    if (agencyInfo && agencyInfo.id) {
-        try {
-            users = await baserow.getAllUsersByAgency(String(agencyInfo.id));
-            console.log(`[Report Debug] Fetched ${users.length} users for Agency ID ${agencyInfo.id}`);
-        } catch (e) {
-            console.error(`Failed to fetch users for ${cleanName}:`, e.message);
+        if (!agencyInfo) {
+            agencyInfo = dbAgencies.find(a => norm(a.name) === target);
         }
+
+        // Second pass: Fuzzy match if exact norm fails
+        if (!agencyInfo) {
+            const allAgencies = [...airtableAgencies, ...dbAgencies];
+            agencyInfo = allAgencies.find(a => {
+                const sName = norm(a.name).replace(/[^a-z0-9]/g, '');
+                return sName === sTarget || (sName.length > 3 && sName.includes(sTarget)) || (sTarget.length > 3 && sTarget.includes(sName));
+            });
+        }
+
+        console.log(`[Report Debug] Request for '${cleanName}' -> Found ID: ${agencyInfo ? agencyInfo.id : 'NOT FOUND'}${agencyInfo ? ` (${agencyInfo.name})` : ''}`);
+
+        // Build Email-to-Agency Map (Mirroring /api/reports/bookings logic)
+        const emailAgencyMap = new Map();
+        try {
+            const allBaserowUsers = await baserow.getAllRows();
+            allBaserowUsers.forEach(u => {
+                const email = u.Email?.toLowerCase().trim();
+                const agencies = u.TravelAgencies || [];
+                if (email && agencies.length > 0) {
+                    // Use the first agency as primary
+                    emailAgencyMap.set(email, agencies[0].value);
+                }
+            });
+            console.log(`[Report Debug] Built global attribution map for ${emailAgencyMap.size} users`);
+        } catch (e) {
+            console.error('[Report Debug] Failed to build global attribution map:', e.message);
+        }
+
+        // Fetch Bookings (CFP + Host)
+        const SHEET_IDS = [
+            '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ' // 2026 Only
+        ];
+
+        let allBookings = [];
+        const results = await Promise.allSettled(SHEET_IDS.map(id => sheets.getRawSheetValues(id)));
+
+        results.forEach((result, idx) => {
+            if (result.status === 'fulfilled') {
+                console.log(`[Report Debug] Sheet ${idx} (${SHEET_IDS[idx]}): ${result.value.length} rows`);
+                allBookings = [...allBookings, ...result.value];
+            } else {
+                console.error(`[Report Debug] Sheet ${idx} Failed:`, result.reason);
+            }
+        });
+
+        const agencyBookings = [];
+        const monthlyStats = {};
+        const statusCounts = {};
+        // Still keep a set of users for the 'users' table in the frontend
+        let usersForTable = [];
+        if (agencyInfo && agencyInfo.id) {
+            try {
+                usersForTable = await baserow.getAllUsersByAgency(String(agencyInfo.id));
+            } catch (e) { }
+        }
+
+        let skippedNoDate = 0;
+        let skippedInvalidDate = 0;
+        let skippedOutOfRange = 0;
+        let skippedNoId = 0;
+        let skippedAgencyMismatch = 0;
+
+        const fromDate = from ? new Date(from) : new Date('2000-01-01');
+        const toDate = to ? new Date(to) : new Date();
+        toDate.setHours(23, 59, 59, 999);
+
+        // Process Bookings - Normalize keys for consistent access
+        console.log(`[Report Debug] Total Booking Rows Fetched: ${allBookings.length}`);
+
+        allBookings.forEach((row, idx) => {
+            // Create a normalized object
+            const normalized = {};
+            Object.keys(row).forEach(k => {
+                const cleanKey = k.toLowerCase().replace(/\s+/g, '');
+                normalized[cleanKey] = row[k];
+            });
+
+            // Extract values
+            const tripId = normalized['tripid'] || normalized['bookingid'] || normalized['id'] || row.id || `idx-${idx}`;
+            const userEmail = (normalized['loggedinuseremail'] || '').trim();
+            const statusRaw = normalized['tripstatus'] || normalized['status'] || 'Unknown';
+            const rowAgencyId = normalized['agencyid'] || normalized['travelagencyid'] || normalized['hostagencyid'] || '';
+
+            // Resolve Agency Name using identical logic as General Report
+            let resolvedAgencyName = (normalized['agencyname'] || normalized['agency'] || normalized['hostagency'] || normalized['travelagency'] || row['AgencyName'] || '').trim();
+
+            // Fallback to email-based map if agency name is missing
+            if (!resolvedAgencyName && userEmail) {
+                const mappedAgency = emailAgencyMap.get(userEmail.toLowerCase());
+                if (mappedAgency) resolvedAgencyName = mappedAgency;
+            }
+
+            // Matching Logic: Match by ID OR by Name
+            let isMatch = false;
+
+            // 1. Match by ID (if available)
+            if (agencyInfo && agencyInfo.id && rowAgencyId) {
+                if (String(rowAgencyId) === String(agencyInfo.id)) isMatch = true;
+            }
+
+            // 2. Match by Name (if ID didn't match or wasn't available)
+            if (!isMatch) {
+                const sRow = resolvedAgencyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const sTarget = target.replace(/[^a-z0-9]/g, ''); // 'target' is already normalized cleanName
+
+                if (sRow === sTarget) isMatch = true;
+                else if (sRow.length > 5 && sTarget.length > 5) {
+                    if (sRow.includes(sTarget) || sTarget.includes(sRow)) isMatch = true;
+                }
+            }
+
+            if (!isMatch) {
+                skippedAgencyMismatch++;
+                return;
+            }
+
+            // Date Extraction Logic
+            let dateStr = normalized['tripcreateddate'] || normalized['tripstartdate'] || normalized['tripcreationdate'] || normalized['bookingdate'] || normalized['date'] || normalized['created'] || normalized['tripdate'] || normalized['creationdate'] || normalized['datecreated'];
+
+            if (!dateStr) {
+                const dateKey = Object.keys(normalized).find(k =>
+                    (k.includes('date') || k.includes('created')) &&
+                    !k.includes('update') && !k.includes('modify') &&
+                    !k.includes('checkin') && !k.includes('checkout')
+                );
+                if (dateKey) dateStr = normalized[dateKey];
+            }
+
+            // Date Parsing
+            let rowDate = dateStr ? new Date(dateStr) : null;
+            if (dateStr && (!rowDate || isNaN(rowDate.getTime())) && !isNaN(dateStr) && Number(dateStr) > 20000) {
+                const serial = Number(dateStr);
+                rowDate = new Date((serial - 25569) * 86400 * 1000);
+            }
+
+            if ((!rowDate || isNaN(rowDate.getTime())) && dateStr) {
+                const parts = dateStr.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+                if (parts) {
+                    rowDate = new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]));
+                }
+            }
+
+            const isValidDate = rowDate && !isNaN(rowDate.getTime());
+
+            if (isValidDate) {
+                if (rowDate < fromDate || rowDate > toDate) {
+                    skippedOutOfRange++;
+                    return;
+                }
+            } else {
+                if (!dateStr) skippedNoDate++;
+                else skippedInvalidDate++;
+                return;
+            }
+
+            // Status Breakdown
+            const statusKey = statusRaw.toLowerCase().trim();
+            if (statusKey.includes('cancel')) {
+                if (!statusCounts['Cancelled']) statusCounts['Cancelled'] = 0;
+                statusCounts['Cancelled']++;
+            } else if (statusKey.includes('quote')) {
+                if (!statusCounts['Quote']) statusCounts['Quote'] = 0;
+                statusCounts['Quote']++;
+            } else if (statusKey.includes('hold')) {
+                if (!statusCounts['On Hold']) statusCounts['On Hold'] = 0;
+                statusCounts['On Hold']++;
+            } else if (statusKey.includes('booked')) {
+                if (!statusCounts['Booked']) statusCounts['Booked'] = 0;
+                statusCounts['Booked']++;
+            }
+
+            const enhancedRow = {
+                ...row,
+                TripID: tripId,
+                TripCreationDate: dateStr,
+                GDSRecordLocator: normalized['gdsrecordlocator'] || normalized['gdsrecord'] || normalized['locator'],
+                loggedInUserEmail: userEmail,
+                Passengers: normalized['passengers'] || normalized['pax'] || '1',
+                TotalAmount: normalized['totalamount'] || normalized['amount'] || '',
+                Status: statusRaw
+            };
+
+            agencyBookings.push(enhancedRow);
+
+            // Monthly Stats accumulation
+            const monthKey = rowDate.toISOString().slice(0, 7); // YYYY-MM
+            if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { users: 0, bookings: 0, cfp: 0, host: 0 };
+            monthlyStats[monthKey].bookings += 1;
+            if (!userEmail) monthlyStats[monthKey].cfp += 1;
+            else monthlyStats[monthKey].host += 1;
+        });
+
+        // Process Users for Trend
+        usersForTable.forEach(u => {
+            if (u.activationDate) {
+                const d = new Date(u.activationDate);
+                if (!isNaN(d.getTime())) {
+                    const monthKey = d.toISOString().slice(0, 7);
+                    if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { users: 0, bookings: 0, cfp: 0, host: 0 };
+                    monthlyStats[monthKey].users += 1;
+                }
+            }
+        });
+
+        // Format graphData
+        const sortedKeys = Object.keys(monthlyStats).sort();
+        const graphData = sortedKeys.map(key => ({
+            month: key,
+            ...monthlyStats[key]
+        }));
+
+        // Write skipped details to a debug file for analysis
+        try {
+            const debugPath = path.join(__dirname, 'last_agency_report_debug.json');
+            fs.writeFileSync(debugPath, JSON.stringify({
+                agency: cleanName,
+                timestamp: new Date().toISOString(),
+                allRowsCount: allBookings.length,
+                validCount: agencyBookings.length,
+                skipped: {
+                    mismatch: skippedAgencyMismatch,
+                    noDate: skippedNoDate,
+                    invalidDate: skippedInvalidDate,
+                    outOfRange: skippedOutOfRange,
+                    noId: skippedNoId
+                }
+            }, null, 2));
+        } catch (e) { }
+
+        res.json({
+            agencyName: cleanName,
+            agencyId: agencyInfo ? agencyInfo.id : null,
+            users: usersForTable,
+            bookings: agencyBookings,
+            statusCounts: statusCounts,
+            graphData: graphData,
+            summary: {
+                totalUsers: usersForTable.length,
+                totalBookings: agencyBookings.length,
+                cfpBookings: agencyBookings.filter(b => !b.loggedInUserEmail).length,
+                hostBookings: agencyBookings.filter(b => b.loggedInUserEmail).length
+            }
+        });
+    } catch (error) {
+        console.error('Agency Details Report Error:', error);
+        res.status(500).json({ error: error.message });
     }
+}));
 
-    // 3. Fetch Bookings (CFP + Host)
+
+// DEBUG ENDPOINT - REMOVE LATER
+app.get('/api/debug/raw-bookings', asyncHandler(async (req, res) => {
     const SHEET_IDS = [
-        '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ', // 2026
-        '14qLdZshoPWppAVVCZA4pkotYBmMEY6QtRxzAb8oY-Jk'  // 2025
+        '1hyX_k-XcE5F5WjFIwC49z0-HhHPhu8zN7r1N_DOlwsQ' // 2026 Only
     ];
-
     let allBookings = [];
     const results = await Promise.allSettled(SHEET_IDS.map(id => sheets.getRawSheetValues(id)));
-
-    results.forEach((result, idx) => {
-        if (result.status === 'fulfilled') {
-            console.log(`[Report Debug] Sheet ${idx} (${SHEET_IDS[idx]}): ${result.value.length} rows`);
-            allBookings = [...allBookings, ...result.value];
-        } else {
-            console.error(`[Report Debug] Sheet ${idx} Failed:`, result.reason);
-        }
-    });
-
     results.forEach(result => {
         if (result.status === 'fulfilled') allBookings = [...allBookings, ...result.value];
     });
 
-    const agencyBookings = [];
-    const monthlyStats = {}; // { "2025-01": { users: 0, bookings: 0, amount: 0 } }
-
-    const fromDate = from ? new Date(from) : new Date('2000-01-01');
-    const toDate = to ? new Date(to) : new Date();
-    toDate.setHours(23, 59, 59, 999);
-
-    // Process Bookings
-    allBookings.forEach(row => {
-        const rowAgency = (row['AgencyName'] || '').trim();
-        const dateStr = row['TripCreationDate'] || row['Trip Creation Date'] || row['TripCreatedDate'];
-
-        if (rowAgency.toLowerCase() !== cleanName.toLowerCase()) return;
-        if (!row.id && !row.TripID && !row.BookingID) return; // minimal validation
-
-        const rowDate = dateStr ? new Date(dateStr) : null;
-        const isValidDate = rowDate && !isNaN(rowDate.getTime());
-
-        // Date Filter for LIST (Graphs always show full history or filtered? usually full trend is better, but let's follow filter)
-        // If filter is provided, we filter the LIST. Trends we can keep full or filter. Let's filter everything for consistency.
-        if (isValidDate) {
-            if (rowDate >= fromDate && rowDate <= toDate) {
-                agencyBookings.push(row);
-            }
-
-            // Populate Monthly Stats (All time or filtered? Let's do filtered to match view)
-            // Actually, trends usually imply "over time", so maybe we ignore the specific "from/to" for valid trend lines?
-            // Let's use the date range if wide, otherwise showing 2 days on a graph is weird. 
-            // Let's include ALL data for the graph to show the "Trend", but list is filtered. 
-            // user requested "users trend for each month", implying historical context.
-
-            const monthKey = rowDate.toISOString().slice(0, 7); // YYYY-MM
-            if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { users: 0, bookings: 0, cfp: 0, host: 0 };
-            monthlyStats[monthKey].bookings += 1;
-            if (!row['loggedInUserEmail']) monthlyStats[monthKey].cfp += 1;
-            else monthlyStats[monthKey].host += 1;
-        }
-    });
-
-    // Process Users for Trend
-    users.forEach(u => {
-        if (u.activationDate) {
-            const d = new Date(u.activationDate);
-            if (!isNaN(d.getTime())) {
-                const monthKey = d.toISOString().slice(0, 7);
-                if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { users: 0, bookings: 0, cfp: 0, host: 0 };
-                monthlyStats[monthKey].users += 1; // New signups that month
-            }
-        }
-    });
-
-    // Sort Month Keys
-    const sortedKeys = Object.keys(monthlyStats).sort();
-    const graphData = sortedKeys.map(key => ({
-        month: key,
-        ...monthlyStats[key]
-    }));
-
     res.json({
-        agencyName: cleanName,
-        agencyId: agencyInfo ? agencyInfo.id : null,
-        users: users,
-        bookings: agencyBookings,
-        graphData: graphData,
-        summary: {
-            totalUsers: users.length,
-            totalBookings: agencyBookings.length,
-            cfpBookings: agencyBookings.filter(b => !b['loggedInUserEmail']).length,
-            hostBookings: agencyBookings.filter(b => b['loggedInUserEmail']).length
-        }
+        totalRows: allBookings.length,
+        headers: allBookings.length > 0 ? Object.keys(allBookings[0]) : [],
+        sampleRows: allBookings.slice(0, 3)
     });
 }));
 

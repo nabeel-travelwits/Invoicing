@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Calendar, Users, BarChart3, Download, Loader2, ArrowLeft, ArrowUpRight
+    Calendar, Users, BarChart3, Download, Loader2, ArrowLeft, ArrowUpRight, PieChart
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -11,9 +11,14 @@ const AgencyReportView = () => {
 
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
-    const [dateRange, setDateRange] = useState({
-        from: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().slice(0, 10), // Default 1 year
-        to: new Date().toISOString().slice(0, 10)
+    const [dateRange, setDateRange] = useState(() => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return {
+            from: start.toISOString().slice(0, 10),
+            to: end.toISOString().slice(0, 10)
+        };
     });
 
     const fetchData = async () => {
@@ -39,6 +44,11 @@ const AgencyReportView = () => {
         // Filter for PDF as well
         const hostBookings = data.bookings.filter(b => b.loggedInUserEmail);
 
+        // Status counts html
+        const statusHtml = Object.entries(data.statusCounts || {}).map(([status, count]) =>
+            `<div style="display:inline-block; margin-right:15px; background:#f0f0f0; padding:5px 10px; border-radius:4px;"><strong>${status}:</strong> ${count}</div>`
+        ).join('');
+
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html>
@@ -46,13 +56,14 @@ const AgencyReportView = () => {
                     <title>${data.agencyName} Report</title>
                     <style>
                         body { font-family: Arial, sans-serif; padding: 20px; }
-                        h1, h2 { color: #333; }
+                        h1, h2 { color: #ddd; }
                         table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 30px; font-size: 12px; }
                         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                         th { background-color: #4f46e5; color: white; }
-                        .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+                        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
                         .card { background: #f9f9f9; padding: 15px; border-radius: 5px; text-align: center; }
                         .metric { font-size: 24px; font-weight: bold; color: #4f46e5; }
+                        .status-container { margin: 20px 0; padding: 10px; border: 1px solid #eee; border-radius: 5px; }
                     </style>
                 </head>
                 <body>
@@ -62,7 +73,13 @@ const AgencyReportView = () => {
                     <div class="summary">
                         <div class="card"><div class="metric">${data.summary.totalUsers}</div><div>Total Users</div></div>
                         <div class="card"><div class="metric">${data.summary.totalBookings}</div><div>Total Bookings</div></div>
+                        <div class="card"><div class="metric" style="color: #f59e0b">${data.summary.cfpBookings}</div><div>CFP Bookings</div></div>
                         <div class="card"><div class="metric" style="color: #6366f1">${data.summary.hostBookings}</div><div>Host Bookings</div></div>
+                    </div>
+
+                    <div class="status-container">
+                        <h3>Booking Status Breakdown</h3>
+                        ${statusHtml}
                     </div>
 
                     <h2>User Roster</h2>
@@ -133,24 +150,46 @@ const AgencyReportView = () => {
                         <input type="date" value={dateRange.to} onChange={e => setDateRange({ ...dateRange, to: e.target.value })} style={{ background: 'transparent', border: 'none', color: 'white' }} />
                     </div>
                     <button className="btn btn-primary" onClick={exportToPDF}><Download size={18} /> Export PDF</button>
-                    <button className="btn btn-ghost" onClick={() => window.location.href = '/public-reports'}>Back to Public Reports</button>
                 </div>
             </header>
 
-            {/* Summary Cards */}
+            {/* Main Stats */}
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', opacity: 0.8 }}>Overview</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
                 <StatCard label="Total Users" value={data.summary.totalUsers} icon={<Users size={24} />} delay={0} />
                 <StatCard label="Total Bookings" value={data.summary.totalBookings} icon={<BarChart3 size={24} />} delay={0.1} />
-                <StatCard label="Host Bookings" value={data.summary.hostBookings} icon={<Users size={24} />} color="var(--primary)" delay={0.2} />
+                <StatCard label="CFP Bookings" value={data.summary.cfpBookings} icon={<ArrowUpRight size={24} />} color="var(--warning)" delay={0.2} />
+                <StatCard label="Host Bookings" value={data.summary.hostBookings} icon={<Users size={24} />} color="var(--primary)" delay={0.3} />
             </div>
 
-            {/* Graphs - Values on Top */}
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Monthly Trends</h3>
+            {/* Status Breakdown Section */}
+            {(data.statusCounts && Object.keys(data.statusCounts).length > 0) && (
+                <div style={{ marginBottom: '3rem' }}>
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', opacity: 0.8 }}>Booking Status Breakdown</h3>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        {Object.entries(data.statusCounts).sort(([, a], [, b]) => b - a).map(([status, count], i) => (
+                            <motion.div
+                                key={status}
+                                className="glass-card"
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: i * 0.05 }}
+                                style={{ padding: '1rem 1.5rem', minWidth: '140px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                            >
+                                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '5px' }}>{status}</span>
+                                <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{count}</span>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Graphs */}
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', opacity: 0.8 }}>Monthly Trends</h3>
             <div className="glass-card" style={{ padding: '2rem', marginBottom: '3rem', overflowX: 'auto' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', height: '300px', gap: '2rem', paddingBottom: '2rem', minWidth: '800px', paddingTop: '20px' }}>
                     {(data.graphData || []).map((item, i) => (
                         <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', justifyContent: 'flex-end', height: '100%' }}>
-                            {/* Bars */}
                             <div style={{ display: 'flex', gap: '6px', height: '100%', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 {/* User Bar */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
@@ -230,17 +269,19 @@ const AgencyReportView = () => {
                                     <th style={{ textAlign: 'left', padding: '10px' }}>Creation Date</th>
                                     <th style={{ textAlign: 'left', padding: '10px' }}>Trip ID</th>
                                     <th style={{ textAlign: 'left', padding: '10px' }}>Advisor Email</th>
+                                    <th style={{ textAlign: 'left', padding: '10px' }}>GDS Record</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {hostBookings.length === 0 ? (
-                                    <tr><td colSpan="3" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>No host bookings found.</td></tr>
+                                    <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>No host bookings found.</td></tr>
                                 ) : (
                                     hostBookings.slice(0, 50).map((b, i) => (
                                         <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                             <td style={{ padding: '10px' }}>{b.TripCreationDate ? new Date(b.TripCreationDate).toLocaleDateString() : '-'}</td>
                                             <td style={{ padding: '10px' }}>{b.TripID || b['Trip ID'] || b.BookingID || b.id}</td>
                                             <td style={{ padding: '10px' }}>{b.loggedInUserEmail}</td>
+                                            <td style={{ padding: '10px' }}>{b.GDSRecordLocator || b['GDS Record Locator'] || '-'}</td>
                                         </tr>
                                     ))
                                 )}
